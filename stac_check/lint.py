@@ -122,6 +122,7 @@ class Linter:
     assets: bool = False
     links: bool = False
     recursive: bool = False
+    item_collection: bool = False
     max_depth: Optional[int] = None
 
     def __post_init__(self):

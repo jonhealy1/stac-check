@@ -27,6 +27,8 @@ Options:
   -m, --max-depth INTEGER  Maximum depth to traverse when recursing. Omit this
                            argument to get full recursion. Ignored if
                            `recursive == False`.
+  -i, --item_collection    Lint and validate a stac api item collection
+                           response.
   -r, --recursive          Recursively validate all related stac objects.
   --help                   Show this message and exit.               Show this message and exit.
 ```
@@ -36,6 +38,12 @@ Options:
 ```
 $ make build  
 $ make shell
+```
+---
+### Item Collection Example
+
+```
+$ stac-check https://earth-search.aws.element84.com/v0/collections/sentinel-s2-l2a/items --item_collection
 ```
 ---
 ### Lint JSON
@@ -49,9 +57,26 @@ for k, v in linter.create_best_practices_dict().items():
     print(k, ":", v)
 ```
 ---
-### CLI Examples
+### Lint in-memory dictionary
+
+```
+from stac_check.lint import Linter
+
+stac_item = {
+    "stac_version": "1.0.0",
+    "stac_extensions": [],
+    "type": "Feature",
+}
+
+linter = Linter(stac_item, assets=True)
+
+for k, v in linter.create_best_practices_dict().items():
+    print(k, ":", v)
+```
+---
+### CLI Example Output
     
-``` stac-check https://raw.githubusercontent.com/stac-utils/pystac/main/tests/data-files/examples/0.9.0/collection-spec/examples/landsat-collection.json --recursive ```
+``` $ stac-check https://raw.githubusercontent.com/stac-utils/pystac/main/tests/data-files/examples/0.9.0/collection-spec/examples/landsat-collection.json --recursive ```
 ```
  ____  ____  __    ___       ___  _  _  ____  ___  __ _ 
 / ___)(_  _)/ _\  / __)___  / __)/ )( \(  __)/ __)(  / )
@@ -96,7 +121,7 @@ Error Message: Expecting value: line 1 column 1 (char 0)
 -------------------------
 ```
 
-``` stac-check sample_files/0.9.0/landsat8-sample.json```
+``` $ stac-check sample_files/0.9.0/landsat8-sample.json```
 
 <pre><b>stac-check: STAC spec validaton and linting tool</b>
 
@@ -159,7 +184,7 @@ This object has 4 links
 
 
    
-``` stac-check sample_files/1.0.0/core-item-bad-links.json --links --assets```    
+``` $ stac-check sample_files/1.0.0/core-item-bad-links.json --links --assets```    
 <pre>
 <b>stac-check: STAC spec validaton and linting tool</b>
 
@@ -201,7 +226,7 @@ LINK request errors:
 This object has 4 links
 </pre>
   
-``` stac-check sample_files/0.9.0/bad-item.json```    
+``` $ stac-check sample_files/0.9.0/bad-item.json```    
 <pre>
 <b>stac-check: STAC spec validaton and linting tool</b>
 

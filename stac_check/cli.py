@@ -20,6 +20,27 @@ def link_asset_message(link_list:list, type: str, format: str) -> None:
     else:
         click.secho(f"No {type.upper()} {format} errors!", fg="green")
 
+def api_collection(linter):
+    counter = 0
+    data = linter.data
+    if data["type"] == "FeatureCollection":
+        for item in data["features"]:
+            lint = Linter(item=item)
+            cli_message(lint)
+            if lint.version == "1.0.0":
+                click.secho(lint.set_update_message(), fg='green')
+            else:
+                click.secho(lint.set_update_message(), fg='red')
+            click.secho()
+            counter = counter + 1
+        click.secho("----------------------------------")
+        click.secho(f"item collection: {counter} items analyzed!", fg="blue", bold=True)
+        click.secho("----------------------------------")
+    else:
+        click.secho("-------------------------")
+        click.secho("The response is not a proper item collection.", fg="red")
+        click.secho("-------------------------")
+
 def recursive_message(linter: Linter) -> None:
     """Displays messages related to the recursive validation of assets in a collection or catalog.
 
@@ -48,7 +69,7 @@ def recursive_message(linter: Linter) -> None:
             click.secho(f"Error Message: {msg['error_message']}", fg='red')
         click.secho("-------------------------")
 
-def intro_message(linter: Linter) -> None:
+def intro_message(linter: Linter, skip_version):
     """Prints an introduction message for the stac-check tool.
 
     The message includes the stac-check logo, the name of the tool, the version
@@ -74,10 +95,11 @@ def intro_message(linter: Linter) -> None:
 
     click.secho()
 
-    if linter.version == "1.0.0":
-        click.secho(linter.set_update_message(), fg='green')
-    else:
-        click.secho(linter.set_update_message(), fg='red')
+    if not skip_version:
+        if linter.version == "1.0.0":
+            click.secho(linter.set_update_message(), fg='green')
+        else:
+            click.secho(linter.set_update_message(), fg='red')
 
     click.secho()
 
@@ -157,7 +179,13 @@ def cli_message(linter: Linter) -> None:
     "--recursive",
     "-r",
     is_flag=True,
-    help="Recursively validate all related stac objects.",
+    help="Recursively lint and validate all related stac objects.",
+)
+@click.option(
+    "--item_collection",
+    "-i",
+    is_flag=True,
+    help="Lint and validate a stac api item collection response.",
 )
 @click.option(
     "--max-depth",
@@ -174,10 +202,19 @@ def cli_message(linter: Linter) -> None:
 @click.command()
 @click.argument('file')
 @click.version_option(version=pkg_resources.require("stac-check")[0].version)
-def main(file, recursive, max_depth, assets, links):
-    linter = Linter(file, assets=assets, links=links, recursive=recursive, max_depth=max_depth)
-    intro_message(linter)
+def main(file, recursive, item_collection, max_depth, assets, links):
+    linter = Linter(
+        item=file,
+        assets=assets,
+        links=links,
+        recursive=recursive,
+        item_collection=item_collection,
+        max_depth=max_depth
+    )
+    intro_message(linter, skip_version=item_collection)
     if recursive > 0:
         recursive_message(linter)
+    elif item_collection > 0:
+        api_collection(linter)
     else:
         cli_message(linter)
