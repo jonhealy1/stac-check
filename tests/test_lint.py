@@ -192,3 +192,32 @@ def test_verbose_error_message():
     verbose_str = str(linter.verbose_error_msg)
     assert "required" in verbose_str
     assert "id" in verbose_str
+
+
+def test_linter_fast_validates_valid_dict():
+    """Fast mode should actually validate dicts, not skip validation."""
+    file = "sample_files/1.0.0/core-item.json"
+    with open(file) as f:
+        data = json.load(f)
+    linter = Linter(data, fast=True)
+    assert linter.valid_stac == True
+    assert linter.message["validation_method"] == "FastJSONSchema"
+
+
+def test_linter_fast_validates_invalid_dict():
+    """Fast mode should report invalid dicts as invalid."""
+    file = "sample_files/1.0.0/bad-item.json"
+    with open(file) as f:
+        data = json.load(f)
+    linter = Linter(data, fast=True)
+    assert linter.valid_stac == False
+    assert linter.error_type == "FastValidationError"
+
+
+def test_linter_fast_prevalidated_dict_skips_validation():
+    """prevalidated dicts skip validation in fast mode."""
+    file = "sample_files/1.0.0/bad-item.json"
+    with open(file) as f:
+        data = json.load(f)
+    linter = Linter(data, fast=True, prevalidated=True)
+    assert linter.valid_stac == True

@@ -1,3 +1,4 @@
+import json
 from unittest import mock
 
 import pytest
@@ -177,6 +178,74 @@ def test_error_handling_with_individual_items():
         assert "error_type" in invalid_result
         # Should have an error message
         assert "error_message" in invalid_result
+
+
+def _load_sample(name):
+    with open(f"sample_files/1.0.0/{name}") as f:
+        return json.load(f)
+
+
+def test_fast_mode_validates_remote_objects():
+    """--fast on a remote source validates each object instead of reporting all valid."""
+    valid_item = _load_sample("core-item.json")
+    invalid_item = _load_sample("bad-item.json")
+
+    with mock.patch("stac_check.api_lint.fetch_and_parse_file") as mock_fetch:
+        mock_fetch.return_value = {"features": [valid_item, invalid_item]}
+
+        linter = ApiLinter(
+            source="https://example.com/api/items",
+            object_list_key="features",
+            pages=1,
+            fast=True,
+        )
+        results = linter.lint_all()
+
+    assert len(results) == 2
+    valid_result = next(r for r in results if r["path"].endswith("20201211_223832_CS2"))
+    invalid_result = next(r for r in results if not r["valid_stac"])
+    assert valid_result["valid_stac"] is True
+    assert invalid_result["validation_method"] == "FastJSONSchema"
+    assert invalid_result["error_type"] == "FastValidationError"
+
+
+def test_fast_mode_json_url_falls_back_and_validates():
+    """--fast on a remote .json URL falls back from FastValidator and still validates."""
+    invalid_item = _load_sample("bad-item.json")
+
+    with mock.patch("stac_check.api_lint.fetch_and_parse_file") as mock_fetch:
+        mock_fetch.return_value = {"features": [invalid_item]}
+
+        # A .json URL triggers the FastValidator path, which fails on open()
+        # and must fall back to per-object validation
+        linter = ApiLinter(
+            source="https://example.com/api/items.json",
+            object_list_key="features",
+            pages=1,
+            fast=True,
+        )
+        results = linter.lint_all()
+
+    assert len(results) == 1
+    assert results[0]["valid_stac"] is False
+
+
+def test_fast_linting_populates_best_practices():
+    """--fast-linting runs best practices checks on collection items."""
+    linter = ApiLinter(
+        source="sample_files/1.0.0/feature_collection.json",
+        object_list_key="features",
+        fast=True,
+        fast_linting=True,
+    )
+    results = linter.lint_all()
+
+    assert len(results) > 0
+    for result in results:
+        assert "best_practices" in result
+        assert isinstance(result["best_practices"], list)
+    # At least one item should have best practices messages
+    assert any(len(result["best_practices"]) > 0 for result in results)
 
 
 def test_item_collection_message_display(item_collection_url):

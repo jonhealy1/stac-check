@@ -30,6 +30,8 @@ class Linter:
         pydantic (bool, optional): A boolean value indicating whether to use pydantic validation. Defaults to False.
         verbose (bool, optional): A boolean value indicating whether to enable verbose output. Defaults to False.
         fast (bool, optional): A boolean value indicating whether to use fast validation mode (skips geometry checks for performance). Defaults to False.
+        fast_linting (bool, optional): A boolean value indicating whether to run linting checks in fast mode. Defaults to False.
+        prevalidated (bool, optional): A boolean value indicating that a dict input was already validated upstream (e.g. as part of a collection validated by FastValidator) so validation can be skipped in fast mode. Defaults to False.
 
     Attributes:
         data (dict): A dictionary representing the STAC JSON file.
@@ -144,6 +146,7 @@ class Linter:
     verbose: bool = False
     fast: bool = False
     fast_linting: bool = False
+    prevalidated: bool = False
 
     def __post_init__(self):
         # Check if pydantic validation is requested but not installed
@@ -267,7 +270,7 @@ class Linter:
         if isinstance(file, str):
             return os.path.basename(file).split(".")[0]
         else:
-            return file["id"]
+            return file.get("id", "")
 
     def load_data(self, file: Union[str, Dict]) -> Dict:
         """Loads JSON data from a file or URL.
@@ -311,8 +314,21 @@ class Linter:
         Raises:
             ValueError: If `file` is not a valid file path or STAC dictionary.
         """
-        # Use FastValidator for fast mode with file paths
-        if self.fast and isinstance(file, str):
+        # In fast mode, skip validation for dicts that were already validated
+        # upstream (e.g. items of a collection validated by FastValidator) and
+        # only run linting checks
+        if self.fast and self.prevalidated and isinstance(file, dict):
+            return {
+                "valid_stac": True,
+                "asset_type": "",
+                "version": file.get("stac_version", ""),
+                "validation_method": "FastJSONSchema",
+                "error_type": "",
+                "error_message": "",
+            }
+
+        # Use FastValidator for fast mode
+        if self.fast:
             try:
                 import io
                 import sys
@@ -322,12 +338,19 @@ class Linter:
                 # Suppress FastValidator output
                 old_stdout = sys.stdout
                 sys.stdout = io.StringIO()
-
-                fast_validator = FastValidator(file, quiet=False, verbose=self.verbose)
-                fast_validator.run()
-
-                # Restore stdout
-                sys.stdout = old_stdout
+                try:
+                    fast_validator = FastValidator(
+                        file if isinstance(file, str) else "in-memory",
+                        quiet=False,
+                        verbose=self.verbose,
+                    )
+                    if isinstance(file, dict):
+                        fast_validator.run_dict(file)
+                    else:
+                        fast_validator.run()
+                finally:
+                    # Restore stdout
+                    sys.stdout = old_stdout
 
                 # Use the message attribute directly from FastValidator if available
                 # FastValidator.message is a list with one dict containing all validation info
@@ -352,7 +375,9 @@ class Linter:
                 return {
                     "valid_stac": fast_validator.valid,
                     "asset_type": "",
-                    "version": "",
+                    "version": (
+                        file.get("stac_version", "") if isinstance(file, dict) else ""
+                    ),
                     "validation_method": "FastJSONSchema",
                     "error_type": (
                         "FastValidationError" if not fast_validator.valid else ""
@@ -367,18 +392,6 @@ class Linter:
                 }
             except ImportError:
                 pass
-
-        # In fast mode with dict, skip validation (already done by FastValidator)
-        # and only run linting checks
-        if self.fast and isinstance(file, dict):
-            return {
-                "valid_stac": True,
-                "asset_type": "",
-                "version": file.get("stac_version", ""),
-                "validation_method": "FastJSONSchema",
-                "error_type": "",
-                "error_message": "",
-            }
 
         if isinstance(file, str):
             stac = StacValidate(
