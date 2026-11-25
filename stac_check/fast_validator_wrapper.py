@@ -96,9 +96,10 @@ def validate_collection_fast(
         is_valid = item_id not in failed_items
         error_messages = failed_items.get(item_id, [])
 
-        # Get best practices for this item (linting checks only, no re-validation)
-        # Only run linting if fast_linting is enabled
+        # Get best practices and geometry errors for this item (linting checks
+        # only, no re-validation). Only run linting if fast_linting is enabled
         best_practices = []
+        geometry_errors = []
         if fast_linting:
             try:
                 item_linter = linter_class(
@@ -109,8 +110,10 @@ def validate_collection_fast(
                     prevalidated=True,
                 )
                 best_practices = item_linter.best_practices_msg
+                geometry_errors = item_linter.geometry_errors_msg
             except Exception:
                 best_practices = []
+                geometry_errors = []
 
         result = {
             "path": obj_url,
@@ -121,7 +124,7 @@ def validate_collection_fast(
             "error_type": "FastValidationError" if not is_valid else "",
             "error_message": error_messages[0] if error_messages else "",
             "best_practices": best_practices,
-            "geometry_errors": [],
+            "geometry_errors": geometry_errors,
             "schema": item_schemas,
             "original_object": obj,
         }

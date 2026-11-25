@@ -1166,8 +1166,8 @@ class Linter:
             'Geometry Validation Errors [BETA]:' base string and is followed by specific details. Each message is indented
             with four spaces, and there is an empty string between each message for readability.
         """
-        # Skip geometry validation in fast mode
-        if self.fast:
+        # Skip geometry validation in fast mode (unless fast_linting is enabled)
+        if self.fast and not self.fast_linting:
             return []
 
         # Check if geometry validation is enabled
