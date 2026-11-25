@@ -6,6 +6,10 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ## Unreleased
 
+### Removed
+
+- Support for Python 3.9
+
 ## [v1.14.0] - 2025-05-02
 
 ### Added
