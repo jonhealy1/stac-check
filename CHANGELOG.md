@@ -10,12 +10,18 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 - Fixed fast mode (`--fast`) reporting objects as valid without validating them when linting dictionaries, e.g. `--fast` combined with `--collections` or `--item-collection` on remote endpoints
 - Fixed tests hanging indefinitely by mocking `urlopen` in asset/link request tests
+- Fixed `--recursive --fast` re-fetching and re-validating every asset while displaying results, negating the speedup on large catalogs
+- Fixed `--headers` being ignored in fast mode; headers are now applied to FastValidator's HTTP session
+- Fixed `--recursive --fast` showing a misleading empty summary when the root document fails to load
+- Fixed `--fast` reporting an empty STAC version for file/URL inputs, always prompting to upgrade to version 1.1.0
+- Fixed percent-encoded identifier check flagging non-Item objects whose ids contain `:`
 
 ### Changed
 
 - `--fast` now applies to `--recursive` validation via FastValidator (`--max-depth` is not supported in fast mode)
 - `--fast-linting` now runs and displays geometry validation checks (previously they were computed but discarded); `--fast` still skips them for maximum performance
 - Switched development workflow, CI, and Docker builds to `uv` with a committed `uv.lock`; the `docs` extra now requires Python >=3.11
+- Docker image is now based on Python 3.12 so the `docs` extra installs, and `make docs` exits with a clear error on Python 3.10
 
 ### Updated
 

@@ -2,6 +2,8 @@ import importlib.metadata
 import importlib.resources
 import json
 import os
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -67,7 +69,7 @@ class Linter:
         validate_file(self, file: Union[str, dict]) -> Dict[str, Any]:
             Validates a STAC JSON file and returns a dictionary with the validation message.
 
-        recursive_validation(self, file: Union[str, Dict[str, Any]]) -> str:
+        recursive_validation(self, file: Union[str, Dict[str, Any]]) -> Union[str, List[Dict]]:
             Validates a STAC JSON file recursively and returns a dictionary with the validation message.
 
         set_update_message(self) -> str:
@@ -300,6 +302,34 @@ class Linter:
         else:
             return file
 
+    @contextmanager
+    def _fast_validator_context(self):
+        """Suppress FastValidator output and apply custom headers to its session.
+
+        FastValidator fetches remote resources through a module-level
+        requests.Session and does not accept a headers argument, so any
+        user-supplied headers are applied to that session for the duration
+        of the validation run and restored afterwards.
+        """
+        import io
+        import sys
+
+        from stac_validator.fast_validator import HTTP_SESSION
+
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        original_headers = None
+        if self.headers:
+            original_headers = dict(HTTP_SESSION.headers)
+            HTTP_SESSION.headers.update(self.headers)
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
+            if original_headers is not None:
+                HTTP_SESSION.headers.clear()
+                HTTP_SESSION.headers.update(original_headers)
+
     def validate_file(self, file: Union[str, dict]) -> Dict[str, Any]:
         """Validates the given file path or STAC dictionary against the validation schema.
 
@@ -330,27 +360,17 @@ class Linter:
         # Use FastValidator for fast mode
         if self.fast:
             try:
-                import io
-                import sys
-
                 from stac_validator.fast_validator import FastValidator
 
-                # Suppress FastValidator output
-                old_stdout = sys.stdout
-                sys.stdout = io.StringIO()
-                try:
+                with self._fast_validator_context():
                     fast_validator = FastValidator(
                         file if isinstance(file, str) else "in-memory",
                         quiet=False,
-                        verbose=self.verbose,
                     )
                     if isinstance(file, dict):
                         fast_validator.run_dict(file)
                     else:
                         fast_validator.run()
-                finally:
-                    # Restore stdout
-                    sys.stdout = old_stdout
 
                 # Use the message attribute directly from FastValidator if available
                 # FastValidator.message is a list with one dict containing all validation info
@@ -376,7 +396,9 @@ class Linter:
                     "valid_stac": fast_validator.valid,
                     "asset_type": "",
                     "version": (
-                        file.get("stac_version", "") if isinstance(file, dict) else ""
+                        self.data.get("stac_version", "")
+                        if isinstance(self.data, dict)
+                        else ""
                     ),
                     "validation_method": "FastJSONSchema",
                     "error_type": (
@@ -426,14 +448,28 @@ class Linter:
                 dictionary representing the STAC item or catalog.
 
         Returns:
-            A string containing the validation message.
+            A list of validation result dictionaries when recursive
+            validation is enabled, otherwise a message string.
 
         Raises:
             TypeError: If the input `file` is not a string or a dictionary.
         """
         if self.recursive:
             if self.fast and isinstance(file, str):
-                return self._fast_recursive_validation(file)
+                try:
+                    return self._fast_recursive_validation(file)
+                except ImportError:
+                    pass
+            if self.fast and not isinstance(file, str):
+                import warnings
+
+                warnings.warn(
+                    "--fast recursive validation is not supported for "
+                    "in-memory dictionaries; falling back to the standard "
+                    "validator.",
+                    UserWarning,
+                    stacklevel=4,
+                )
             if isinstance(file, str):
                 stac = StacValidate(
                     file,
@@ -463,8 +499,6 @@ class Linter:
         Note: --max-depth is not supported by FastValidator's recursive mode,
         which uses a fixed internal depth limit.
         """
-        import io
-        import sys
         import warnings
 
         from stac_validator.fast_validator import FastValidator
@@ -474,21 +508,37 @@ class Linter:
                 "--max-depth is not supported in fast mode; the full catalog "
                 "will be validated.",
                 UserWarning,
-                stacklevel=3,
+                stacklevel=5,
             )
 
-        # Suppress FastValidator output
-        old_stdout = sys.stdout
-        sys.stdout = io.StringIO()
-        try:
-            fast_validator = FastValidator(file, quiet=False, verbose=self.verbose)
+        start_time = time.perf_counter()
+        with self._fast_validator_context():
+            fast_validator = FastValidator(file, quiet=False)
             fast_validator.run_recursive()
-        finally:
-            sys.stdout = old_stdout
+        self.fast_total_time = (time.perf_counter() - start_time) * 1000
 
-        return [
+        results = [
             self._map_fast_recursive_result(result) for result in fast_validator.message
         ]
+
+        # run_recursive() returns early with an empty message list when the
+        # root document cannot be loaded; surface that as a failed result
+        # instead of an empty summary.
+        if not results and not fast_validator.valid:
+            results.append(
+                {
+                    "version": "",
+                    "path": file,
+                    "schema": [],
+                    "asset_type": "",
+                    "validation_method": "FastJSONSchema",
+                    "valid_stac": False,
+                    "error_type": "FastValidationError",
+                    "error_message": f"Failed to load: {file}",
+                }
+            )
+
+        return results
 
     @staticmethod
     def _map_fast_recursive_result(result: Dict) -> Dict:
@@ -507,6 +557,7 @@ class Linter:
         return {
             "version": stac_version,
             "path": result.get("path", ""),
+            "id": result.get("id", ""),
             "schema": schema,
             "asset_type": (
                 stac_type.upper() if stac_type not in ("", "unknown") else ""
@@ -736,8 +787,8 @@ class Linter:
         Returns:
             bool: True if the identifiers are percent-encoded, False otherwise.
         """
-        return (
-            self.asset_type == "ITEM" and "/" in self.object_id or ":" in self.object_id
+        return self.asset_type == "ITEM" and (
+            "/" in self.object_id or ":" in self.object_id
         )
 
     def check_thumbnail(self) -> bool:

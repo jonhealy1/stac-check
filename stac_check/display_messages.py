@@ -745,8 +745,6 @@ def _display_fallback_message(
             if error:  # Skip empty strings
                 click.secho(error, fg="black")
 
-    click.secho("-------------------------")
-
 
 def collections_message(
     linter: ApiLinter,
@@ -826,9 +824,10 @@ def recursive_message(
     # Define a function to create Linter instances from recursive results
     def create_recursive_linter(msg):
         # In fast mode objects were already validated during the recursive
-        # walk, so a non-recursive fast Linter is enough for display
+        # walk; re-creating a Linter would re-fetch and re-validate every
+        # asset, so display the mapped result directly instead.
         if linter.fast:
-            return Linter(msg["path"], fast=True, fast_linting=linter.fast_linting)
+            return None
         return Linter(msg["path"], recursive=True)
 
     # Display the results using the shared helper
@@ -839,6 +838,8 @@ def recursive_message(
         cli_message_func=cli_message_func,
         create_linter_func=create_recursive_linter,
         verbose=verbose,
+        fast=linter.fast,
+        total_time=getattr(linter, "fast_total_time", 0.0),
     )
 
 

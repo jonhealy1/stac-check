@@ -1,3 +1,8 @@
+import json
+
+import pytest
+
+from stac_check import display_messages
 from stac_check.lint import Linter
 
 
@@ -31,6 +36,122 @@ def test_linter_recursive_fast():
     assert invalid["error_type"] == "FastValidationError"
     valid = [msg for msg in linter.validate_all if msg["valid_stac"]]
     assert len(valid) == 2
+
+
+def test_linter_recursive_fast_missing_child():
+    """Children that fail to load are reported as failed results."""
+    file = "sample_files/1.0.0/catalog-with-missing-item.json"
+    linter = Linter(file, recursive=True, fast=True)
+    failed = [msg for msg in linter.validate_all if not msg["valid_stac"]]
+    assert len(failed) == 1
+    assert failed[0]["path"].endswith("does-not-exist.json")
+    assert "Failed to load" in failed[0]["error_message"]
+    assert failed[0]["asset_type"] == ""
+
+
+def test_linter_recursive_fast_root_load_failure(monkeypatch):
+    """A root document that fails to load inside FastValidator surfaces as a
+    failed result instead of an empty summary."""
+    from stac_validator import fast_validator as fv
+
+    def _raise(self_v, resource_path):
+        raise OSError("boom")
+
+    monkeypatch.setattr(fv.FastValidator, "_load_json_resource", _raise)
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True)
+    assert len(linter.validate_all) == 1
+    msg = linter.validate_all[0]
+    assert msg["valid_stac"] is False
+    assert msg["path"] == file
+    assert "Failed to load" in msg["error_message"]
+
+
+def test_linter_recursive_fast_max_depth_warns():
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    with pytest.warns(UserWarning, match="--max-depth is not supported"):
+        linter = Linter(file, recursive=True, fast=True, max_depth=1)
+    assert len(linter.validate_all) == 3
+
+
+def test_linter_recursive_fast_dict_warns():
+    """--fast is not supported for in-memory dicts; falls back with a warning."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    with open(file) as f:
+        data = json.load(f)
+    with pytest.warns(UserWarning, match="not supported for in-memory dict"):
+        linter = Linter(data, recursive=True, fast=True)
+    assert isinstance(linter.validate_all, list)
+
+
+def test_linter_recursive_fast_headers(monkeypatch):
+    """Custom headers are applied to FastValidator's HTTP session and
+    restored afterwards."""
+    from stac_validator import fast_validator as fv
+
+    seen_headers = {}
+
+    def spy_load(self_v, resource_path):
+        seen_headers.update(fv.HTTP_SESSION.headers)
+        return {
+            "type": "Catalog",
+            "id": "c",
+            "stac_version": "1.0.0",
+            "description": "d",
+            "links": [],
+        }
+
+    monkeypatch.setattr(fv.FastValidator, "_load_json_resource", spy_load)
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    Linter(
+        file,
+        recursive=True,
+        fast=True,
+        headers={"Authorization": "Bearer token"},
+    )
+    assert seen_headers["Authorization"] == "Bearer token"
+    assert "Authorization" not in fv.HTTP_SESSION.headers
+
+
+def test_recursive_message_fast(capsys):
+    """Fast recursive display shows fallback per-asset output plus the
+    compact fast summary with timing information."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True)
+    display_messages.recursive_message(linter)
+    out = capsys.readouterr().out
+    assert "Passed: 2/3" in out
+    assert "Failed: 1/3" in out
+    assert "Total Validation Time" in out
+
+
+def test_recursive_message_fast_silences_output(monkeypatch, capsys):
+    """--fast recursive output silences per-asset display for large catalogs
+    without re-instantiating a Linter for every result."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True)
+    linter.validate_all = [
+        {
+            "version": "1.0.0",
+            "path": f"/tmp/item-{i}.json",
+            "schema": [],
+            "asset_type": "ITEM",
+            "validation_method": "FastJSONSchema",
+            "valid_stac": True,
+            "error_type": "",
+            "error_message": "",
+        }
+        for i in range(25)
+    ]
+
+    def _no_linter(*args, **kwargs):
+        raise AssertionError("Linter must not be re-created in fast mode")
+
+    monkeypatch.setattr(display_messages, "Linter", _no_linter)
+    display_messages.recursive_message(linter)
+    out = capsys.readouterr().out
+    assert "silencing output" in out
+    assert "Passed: 25/25" in out
 
 
 def test_linter_recursive_max_depth_1():
