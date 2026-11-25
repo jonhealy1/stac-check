@@ -244,6 +244,8 @@ def test_fast_linting_populates_best_practices():
     for result in results:
         assert "best_practices" in result
         assert isinstance(result["best_practices"], list)
+        assert "geometry_errors" in result
+        assert isinstance(result["geometry_errors"], list)
     # At least one item should have best practices messages
     assert any(len(result["best_practices"]) > 0 for result in results)
 

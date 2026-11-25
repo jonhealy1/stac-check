@@ -112,8 +112,8 @@ def _display_geometry_errors(linter: Linter) -> None:
     Args:
         linter: The Linter object containing geometry error information
     """
-    # Skip geometry errors display in fast mode
-    if hasattr(linter, "fast") and linter.fast:
+    # Skip geometry errors display in fast mode (unless fast_linting is enabled)
+    if getattr(linter, "fast", False) and not getattr(linter, "fast_linting", False):
         return
 
     if linter.geometry_errors_msg:
@@ -237,6 +237,7 @@ def _display_fast_validation_summary(
     failed = []
     error_registry: Dict[str, List[str]] = {}
     best_practices_issues: List[tuple] = []
+    geometry_issues: List[tuple] = []
 
     for result in results:
         if result.get("valid_stac"):
@@ -264,6 +265,18 @@ def _display_fast_validation_summary(
             if filtered_practices:
                 path = result.get("path", "unknown")
                 best_practices_issues.append((path, filtered_practices))
+
+        # Collect geometry errors (filter out empty/base messages)
+        geometry_errors = result.get("geometry_errors", [])
+        if geometry_errors:
+            filtered_geo = [
+                msg
+                for msg in geometry_errors
+                if msg and msg.strip() and msg.strip() != "Geometry Validation [BETA]:"
+            ]
+            if filtered_geo:
+                path = result.get("path", "unknown")
+                geometry_issues.append((path, filtered_geo))
 
     click.secho()
     click.secho("\n Validation Summary", bold=True, bg="black", fg="white")
@@ -340,6 +353,32 @@ def _display_fast_validation_summary(
                 sample_ids += f" ... (and {count - 3} more)"
             click.secho(
                 f"   Affected Items: {count} | Examples: {sample_ids}", fg="blue"
+            )
+            click.secho()
+
+    # Display geometry errors (grouped by message type)
+    if geometry_issues:
+        click.secho()
+        click.secho("\n Geometry Validation [BETA]", bg="magenta", fg="black")
+        click.secho()
+
+        geometry_registry: Dict[str, List[str]] = {}
+        for path, messages in geometry_issues:
+            item_id = path.split("/")[-1] if "/" in path else path
+            for msg in messages:
+                normalized_msg = re.sub(r"(?<![a-zA-Z])'[^']+'", "'<id>'", msg.strip())
+                if normalized_msg not in geometry_registry:
+                    geometry_registry[normalized_msg] = []
+                geometry_registry[normalized_msg].append(item_id)
+
+        for geo_msg, affected_ids in geometry_registry.items():
+            count = len(affected_ids)
+            click.secho(f"⚠️  {geo_msg}", fg="magenta")
+            sample_ids = ", ".join(affected_ids[:3])
+            if count > 3:
+                sample_ids += f" ... (and {count - 3} more)"
+            click.secho(
+                f"   Affected Items: {count} | Examples: {sample_ids}", fg="magenta"
             )
             click.secho()
 
@@ -625,7 +664,11 @@ def item_collection_message(
     # Define a function to create Linter instances from API results
     def create_api_linter(msg):
         if msg.get("original_object"):
-            return Linter(msg.get("original_object"), fast=linter.fast)
+            return Linter(
+                msg.get("original_object"),
+                fast=linter.fast,
+                fast_linting=linter.fast_linting,
+            )
         raise ValueError("No original object available")
 
     # Display the results using the shared helper
@@ -736,7 +779,11 @@ def collections_message(
     # Define a function to create Linter instances from API results
     def create_collection_linter(msg):
         if msg.get("original_object"):
-            return Linter(msg.get("original_object"), fast=linter.fast)
+            return Linter(
+                msg.get("original_object"),
+                fast=linter.fast,
+                fast_linting=linter.fast_linting,
+            )
         raise ValueError("No original object available")
 
     # Display the results using the shared helper

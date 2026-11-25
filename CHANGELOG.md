@@ -11,6 +11,10 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - Fixed fast mode (`--fast`) reporting objects as valid without validating them when linting dictionaries, e.g. `--fast` combined with `--collections` or `--item-collection` on remote endpoints
 - Fixed tests hanging indefinitely by mocking `urlopen` in asset/link request tests
 
+### Changed
+
+- `--fast-linting` now runs and displays geometry validation checks (previously they were computed but discarded); `--fast` still skips them for maximum performance
+
 ### Updated
 
 - Updated stac-valid dependency to >=4.6.2,<5

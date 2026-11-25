@@ -221,3 +221,18 @@ def test_linter_fast_prevalidated_dict_skips_validation():
         data = json.load(f)
     linter = Linter(data, fast=True, prevalidated=True)
     assert linter.valid_stac == True
+
+
+def test_linter_fast_skips_geometry_errors():
+    """--fast skips geometry validation."""
+    file = "sample_files/1.0.0/invalid-antimeridian-bbox.json"
+    linter = Linter(file, fast=True)
+    assert linter.geometry_errors_msg == []
+
+
+def test_linter_fast_linting_geometry_errors():
+    """--fast-linting surfaces geometry validation errors."""
+    file = "sample_files/1.0.0/invalid-antimeridian-bbox.json"
+    linter = Linter(file, fast=True, fast_linting=True)
+    assert linter.geometry_errors_msg[0] == "Geometry Validation [BETA]: "
+    assert any("antimeridian" in msg for msg in linter.geometry_errors_msg)
