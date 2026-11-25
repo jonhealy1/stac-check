@@ -102,7 +102,11 @@ def validate_collection_fast(
         if fast_linting:
             try:
                 item_linter = linter_class(
-                    obj, verbose=verbose, fast=True, fast_linting=True
+                    obj,
+                    verbose=verbose,
+                    fast=True,
+                    fast_linting=True,
+                    prevalidated=True,
                 )
                 best_practices = item_linter.best_practices_msg
             except Exception:
