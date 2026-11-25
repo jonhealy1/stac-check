@@ -14,6 +14,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 ### Changed
 
 - `--fast-linting` now runs and displays geometry validation checks (previously they were computed but discarded); `--fast` still skips them for maximum performance
+- Switched development workflow, CI, and Docker builds to `uv` with a committed `uv.lock`; the `docs` extra now requires Python >=3.11
 
 ### Updated
 

@@ -12,8 +12,8 @@ shell:
 
 .PHONY: docs
 docs:           ## Build documentation locally
-	pip install -e ".[docs]"
-	sphinx-build -b html -E docs/ docs/_build/html
+	uv sync --extra docs
+	uv run sphinx-build -b html -E docs/ docs/_build/html
 	@echo "Documentation built in docs/_build/html"
 
 .PHONY: docker-docs
