@@ -60,7 +60,13 @@ For development and building the documentation locally, see the [Development](#d
 $ pip install stac-check
 ```
 
-For local development:
+For local development, this project uses [uv](https://docs.astral.sh/uv/):
+
+```bash
+$ uv sync --extra dev
+```
+
+Or with pip:
 
 ```bash
 $ pip install -e '.[dev]'
@@ -572,7 +578,7 @@ To build the documentation locally (for development or testing), you'll need to 
 
 ```bash
 # Install the package with documentation dependencies
-pip install -e ".[docs]"
+uv sync --extra docs
 
 # Build the documentation
 make docs
