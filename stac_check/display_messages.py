@@ -825,6 +825,10 @@ def recursive_message(
 
     # Define a function to create Linter instances from recursive results
     def create_recursive_linter(msg):
+        # In fast mode objects were already validated during the recursive
+        # walk, so a non-recursive fast Linter is enough for display
+        if linter.fast:
+            return Linter(msg["path"], fast=True, fast_linting=linter.fast_linting)
         return Linter(msg["path"], recursive=True)
 
     # Display the results using the shared helper

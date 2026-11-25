@@ -416,7 +416,9 @@ class Linter:
 
         return stac.message[0]
 
-    def recursive_validation(self, file: Union[str, Dict[str, Any]]) -> str:
+    def recursive_validation(
+        self, file: Union[str, Dict[str, Any]]
+    ) -> Union[str, List[Dict]]:
         """Recursively validate a STAC item or catalog file and its child items.
 
         Args:
@@ -430,6 +432,8 @@ class Linter:
             TypeError: If the input `file` is not a string or a dictionary.
         """
         if self.recursive:
+            if self.fast and isinstance(file, str):
+                return self._fast_recursive_validation(file)
             if isinstance(file, str):
                 stac = StacValidate(
                     file,
@@ -452,6 +456,66 @@ class Linter:
             return stac.message
         else:
             return "Recursive validation is disabled."
+
+    def _fast_recursive_validation(self, file: str) -> List[Dict]:
+        """Recursively validate a catalog and its children using FastValidator.
+
+        Note: --max-depth is not supported by FastValidator's recursive mode,
+        which uses a fixed internal depth limit.
+        """
+        import io
+        import sys
+        import warnings
+
+        from stac_validator.fast_validator import FastValidator
+
+        if self.max_depth is not None:
+            warnings.warn(
+                "--max-depth is not supported in fast mode; the full catalog "
+                "will be validated.",
+                UserWarning,
+                stacklevel=3,
+            )
+
+        # Suppress FastValidator output
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        try:
+            fast_validator = FastValidator(file, quiet=False, verbose=self.verbose)
+            fast_validator.run_recursive()
+        finally:
+            sys.stdout = old_stdout
+
+        return [
+            self._map_fast_recursive_result(result) for result in fast_validator.message
+        ]
+
+    @staticmethod
+    def _map_fast_recursive_result(result: Dict) -> Dict:
+        """Map a FastValidator recursive result to the StacValidate message format."""
+        stac_type = result.get("stac_type", "")
+        stac_version = result.get("stac_version", "")
+        schema = (
+            [
+                f"https://schemas.stacspec.org/v{stac_version}/{stac_type}-spec/json-schema/{stac_type}.json"
+            ]
+            if stac_type in ("item", "collection", "catalog")
+            and stac_version not in ("", "unknown")
+            else []
+        )
+        valid = result.get("valid_stac", False)
+        return {
+            "version": stac_version,
+            "path": result.get("path", ""),
+            "schema": schema,
+            "asset_type": (
+                stac_type.upper() if stac_type not in ("", "unknown") else ""
+            ),
+            "validation_method": "FastJSONSchema",
+            "valid_stac": valid,
+            "error_type": "" if valid else "FastValidationError",
+            "error_message": result.get("error_message", ""),
+        }
 
     def set_update_message(self) -> str:
         """Returns a message for users to update their STAC version.

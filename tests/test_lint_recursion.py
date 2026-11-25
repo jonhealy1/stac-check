@@ -17,6 +17,22 @@ def test_linter_collection_recursive():
         assert msg["path"].endswith("bad-item.json")
 
 
+def test_linter_recursive_fast():
+    """--recursive --fast uses FastValidator to validate the whole catalog."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True)
+    assert linter.recursive == True
+    assert len(linter.validate_all) == 3  # catalog + 2 items
+    assert all(
+        msg["validation_method"] == "FastJSONSchema" for msg in linter.validate_all
+    )
+    invalid = next(msg for msg in linter.validate_all if not msg["valid_stac"])
+    assert invalid["path"].endswith("bad-item.json")
+    assert invalid["error_type"] == "FastValidationError"
+    valid = [msg for msg in linter.validate_all if msg["valid_stac"]]
+    assert len(valid) == 2
+
+
 def test_linter_recursive_max_depth_1():
     file = "https://radarstac.s3.amazonaws.com/stac/catalog.json"
     stac = Linter(file, assets=False, links=False, recursive=True, max_depth=1)
