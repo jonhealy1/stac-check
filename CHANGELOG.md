@@ -6,6 +6,10 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ## Unreleased
 
+### Updated
+
+- Updated stac-valid dependency to >=4.6.2,<5
+
 ### Removed
 
 - Support for Python 3.9
