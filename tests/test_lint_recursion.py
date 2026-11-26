@@ -70,7 +70,7 @@ def test_linter_recursive_fast_missing_child():
 
 def test_linter_recursive_fast_root_load_failure(monkeypatch):
     """A root document that fails to load inside FastValidator surfaces as a
-    failed result instead of an empty summary."""
+    failed result carrying the real failure reason."""
     from stac_validator import fast_validator as fv
 
     def _raise(self_v, resource_path):
@@ -83,7 +83,7 @@ def test_linter_recursive_fast_root_load_failure(monkeypatch):
     msg = linter.validate_all[0]
     assert msg["valid_stac"] is False
     assert msg["path"] == file
-    assert "Failed to load" in msg["error_message"]
+    assert "boom" in msg["error_message"]
 
 
 def test_linter_recursive_fast_max_depth_enforced():
@@ -99,6 +99,14 @@ def test_linter_recursive_max_depth_unlimited():
     """Without --max-depth the whole catalog is walked."""
     file = "sample_files/1.0.0/catalog-with-bad-item.json"
     linter = Linter(file, recursive=True, fast=True)
+    assert len(linter.validate_all) == 3
+
+
+def test_linter_recursive_max_depth_zero_unlimited():
+    """--max-depth 0 means unlimited, matching the legacy engine's
+    falsy semantics; it must not silently validate nothing."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True, max_depth=0)
     assert len(linter.validate_all) == 3
 
 

@@ -243,3 +243,22 @@ def test_linter_pre_1_0_rejected_dict():
     linter = Linter(data)
     assert linter.valid_stac is False
     assert linter.error_type == "UnsupportedVersionError"
+
+
+def test_is_pre_1_0_two_part_version():
+    """A two-part "1.0" version is not pre-1.0; padding must not sort
+    it below "1.0.0"."""
+    from stac_check.lint import _is_pre_1_0
+
+    assert _is_pre_1_0({"stac_version": "1.0"}) is False
+    assert _is_pre_1_0({"stac_version": "0.9"}) is True
+    assert _is_pre_1_0({"stac_version": "1.0.0"}) is False
+
+
+def test_linter_unrecognized_json_reports_error():
+    """A JSON document that FastValidator cannot recognize reports its
+    own error line rather than a blank error_message."""
+    linter = Linter({"foo": "bar"})
+    assert linter.valid_stac is False
+    assert linter.error_type == "FastValidationError"
+    assert "type" in linter.error_msg.lower() or "Unknown" in linter.error_msg

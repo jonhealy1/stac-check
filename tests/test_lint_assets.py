@@ -3,23 +3,6 @@ from unittest import mock
 from stac_check.lint import Linter
 
 
-class _FakeResponse:
-    def getcode(self):
-        return 200
-
-
-def _fake_urlopen(request, *args, **kwargs):
-    """Simulate urlopen: succeed for reachable hosts, fail otherwise.
-
-    stac-validator's link_request calls urlopen without a timeout, so
-    requests to dead URLs hang. Mocking keeps these tests offline.
-    """
-    url = getattr(request, "full_url", request)
-    if "storage.googleapis.com" in url:
-        return _FakeResponse()
-    raise OSError(f"Simulated network failure for {url}")
-
-
 def _fake_get(url, headers=None, *args, **kwargs):
     """Simulate stac_check's native href checks: succeed for reachable
     hosts, fail otherwise."""
@@ -29,8 +12,7 @@ def _fake_get(url, headers=None, *args, **kwargs):
 
 
 @mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
-@mock.patch("stac_validator.utilities.urlopen", side_effect=_fake_urlopen)
-def test_lint_assets_no_links(mock_urlopen, mock_get):
+def test_lint_assets_no_links(mock_get):
     file = "sample_files/1.0.0/core-item.json"
     linter = Linter(file, assets=True, assets_open_urls=False)
     assert linter.message["version"] == "1.0.0"
@@ -53,8 +35,7 @@ def test_lint_assets_no_links(mock_urlopen, mock_get):
 
 
 @mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
-@mock.patch("stac_validator.utilities.urlopen", side_effect=_fake_urlopen)
-def test_linter_bad_assets(mock_urlopen, mock_get):
+def test_linter_bad_assets(mock_get):
     file = "sample_files/1.0.0/core-item-bad-links.json"
     linter = Linter(file, assets=True)
     asset_format_errors = [
@@ -73,8 +54,7 @@ def test_linter_bad_assets(mock_urlopen, mock_get):
 
 
 @mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
-@mock.patch("stac_validator.utilities.urlopen", side_effect=_fake_urlopen)
-def test_linter_bad_links(mock_urlopen, mock_get):
+def test_linter_bad_links(mock_get):
     file = "sample_files/1.0.0/core-item-bad-links.json"
     linter = Linter(file, links=True)
     link_format_errors = ["http:/remotdata.io/catalog/20201211_223832_CS2/index.html"]
@@ -93,8 +73,7 @@ def test_linter_bad_links(mock_urlopen, mock_get):
 
 
 @mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
-@mock.patch("stac_validator.utilities.urlopen", side_effect=_fake_urlopen)
-def test_linter_bad_links_assets(mock_urlopen, mock_get):
+def test_linter_bad_links_assets(mock_get):
     file = "sample_files/1.0.0/core-item-bad-links.json"
     linter = Linter(file, assets=True, links=True)
     asset_format_errors = [

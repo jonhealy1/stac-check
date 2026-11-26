@@ -34,13 +34,23 @@ def _is_pre_1_0(data: Dict[str, Any]) -> bool:
     """Return True when a STAC document declares a version below 1.0.0.
 
     Unparseable or missing versions return False so the validator reports
-    its own error rather than a misleading version message.
+    its own error rather than a misleading version message. Versions are
+    padded to three parts so "1.0" does not sort below "1.0.0".
     """
     version = data.get("stac_version", "") if isinstance(data, dict) else ""
     try:
-        return tuple(int(p) for p in str(version).split(".")) < (1, 0, 0)
+        parts = [int(p) for p in str(version).split(".")]
+        return tuple((parts + [0, 0, 0])[:3]) < (1, 0, 0)
     except (ValueError, AttributeError):
         return False
+
+
+def _first_error_line(output: str) -> str:
+    """Extract the failure reason FastValidator printed to suppressed stdout."""
+    for line in output.splitlines():
+        if "❌" in line:
+            return line.split("❌", 1)[1].strip()
+    return ""
 
 
 def _unsupported_version_message(data: Dict[str, Any], path: str) -> Dict[str, Any]:
@@ -373,13 +383,14 @@ class Linter:
         from stac_validator.fast_validator import HTTP_SESSION
 
         old_stdout = sys.stdout
-        sys.stdout = io.StringIO()
+        captured = io.StringIO()
+        sys.stdout = captured
         original_headers = None
         if self.headers:
             original_headers = dict(HTTP_SESSION.headers)
             HTTP_SESSION.headers.update(self.headers)
         try:
-            yield
+            yield captured
         finally:
             sys.stdout = old_stdout
             if original_headers is not None:
@@ -427,7 +438,7 @@ class Linter:
 
         from stac_validator.fast_validator import FastValidator
 
-        with self._fast_validator_context():
+        with self._fast_validator_context() as captured:
             fast_validator = FastValidator(
                 file if isinstance(file, str) else "in-memory",
                 quiet=False,
@@ -451,10 +462,21 @@ class Linter:
 
         # Extract error message from the first error if any
         error_message = ""
-        if not fast_validator.valid and "errors" in fv_msg:
-            errors = fv_msg.get("errors", [])
-            if errors and len(errors) > 0:
-                error_message = errors[0].get("error_message", "")
+        if not fast_validator.valid:
+            if "errors" in fv_msg:
+                errors = fv_msg.get("errors", [])
+                if errors and len(errors) > 0:
+                    error_message = errors[0].get("error_message", "")
+            # run_dict() reports early-return failures on the message itself
+            if not error_message:
+                error_message = fv_msg.get("error_message", "")
+            # run() early-returns on load or type-detection failures
+            # without populating message; recover the reason it printed
+            # before stdout was suppressed
+            if not error_message:
+                error_message = _first_error_line(captured.getvalue()) or (
+                    f"Failed to validate {file if isinstance(file, str) else 'input'}"
+                )
 
         from .utilities import determine_asset_type
 
@@ -565,8 +587,16 @@ class Linter:
                 collection_id=None,
                 prefetched_resources=None,
                 depth=0,
+                *args,
+                **kwargs,
             ):
-                if self._max_depth is not None and depth >= self._max_depth:
+                # Tolerate upstream adding parameters to this private
+                # method within the pinned stac-valid range
+                if (
+                    self._max_depth is not None
+                    and self._max_depth > 0
+                    and depth >= self._max_depth
+                ):
                     return
                 if _is_pre_1_0(data):
                     # Report a clear error instead of letting get_validator
@@ -597,10 +627,12 @@ class Linter:
                     collection_id=collection_id,
                     prefetched_resources=prefetched_resources,
                     depth=depth,
+                    *args,
+                    **kwargs,
                 )
 
         start_time = time.perf_counter()
-        with self._fast_validator_context():
+        with self._fast_validator_context() as captured:
             fast_validator = _RecursiveFastValidator(file, quiet=False)
             fast_validator._max_depth = self.max_depth
             fast_validator.run_recursive()
@@ -644,8 +676,12 @@ class Linter:
 
         # run_recursive() returns early with an empty message list when the
         # root document cannot be loaded; surface that as a failed result
-        # instead of an empty summary.
+        # instead of an empty summary, carrying the reason it printed
+        # before stdout was suppressed.
         if not results and not fast_validator.valid:
+            error_message = _first_error_line(captured.getvalue()) or (
+                f"Failed to load: {file}"
+            )
             results.append(
                 {
                     "version": "",
@@ -655,7 +691,7 @@ class Linter:
                     "validation_method": "FastJSONSchema",
                     "valid_stac": False,
                     "error_type": "FastValidationError",
-                    "error_message": f"Failed to load: {file}",
+                    "error_message": error_message,
                 }
             )
 
@@ -838,7 +874,7 @@ class Linter:
             from stac_pydantic import Catalog, Collection, Item, ItemCollection
             from stac_pydantic.extensions import validate_extensions
 
-            models = {
+            models: Dict[str, Any] = {
                 "ITEM": Item,
                 "COLLECTION": Collection,
                 "CATALOG": Catalog,

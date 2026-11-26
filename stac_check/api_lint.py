@@ -293,7 +293,12 @@ class ApiLinter:
 
         # Local collection files are validated in one pass; --fast only
         # controls whether per-item linting runs, not the engine
-        if isinstance(self.source, str) and self.source.endswith((".json", ".geojson")):
+        is_local_file = (
+            isinstance(self.source, str)
+            and self.source.endswith((".json", ".geojson"))
+            and not self.source.startswith(("http://", "https://"))
+        )
+        if is_local_file:
             try:
                 results, total_time, schemas = validate_collection_fast(
                     self.source,
