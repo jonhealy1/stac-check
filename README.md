@@ -19,7 +19,7 @@ The intent of this project is to provide a validation tool that also follows the
 
 ## Latest News
 
-- **11/26/2026:** ⚡ **Fast Recursive Validation!** `--fast` now works with `--recursive`, validating an entire catalog and all of its linked objects with FastJSONSchema in a single pass instead of re-fetching and re-validating every asset during display. In our benchmarks it validated a local catalog of 61 objects **~45× faster** than standard recursion (0.01s vs 0.46s validation time, ~17× end-to-end) and a remote catalog end-to-end **~6× faster** (3.1s vs 18.6s) — and the gap widens sharply on large or deeply nested remote catalogs, where standard recursion's per-asset re-walks push runtimes into the minutes while `--fast` finishes in seconds. Custom `--headers` are applied to remote fetches, and results are shown in the compact summary with errors grouped across the whole walk. Note that `--max-depth` is ignored in fast mode. See [Recursive Validation](#recursive-validation) and [Fast Validation](#fast-validation).
+- **11/26/2026:** ⚡ **Fast Recursive Validation!** `--fast` now works with `--recursive`, validating an entire catalog and all of its linked objects with FastJSONSchema in a single pass instead of re-fetching and re-validating every asset during display. In our benchmarks it validated a local catalog of 61 objects **~30× faster** than standard recursion (0.08s vs 2.5s validation time, ~19× end-to-end) and a remote catalog end-to-end **~6× faster** (2.9s vs 17.6s) — and the gap widens sharply on large or deeply nested remote catalogs, where standard recursion's per-asset re-walks push runtimes into the minutes while `--fast` finishes in seconds. Custom `--headers` are applied to remote fetches, `--fast-linting` additionally runs linting and geometry checks per object, and results are shown in the compact summary with errors grouped across the whole walk. Note that `--max-depth` is ignored in fast mode. See [Recursive Validation](#recursive-validation) and [Fast Validation](#fast-validation).
 
 <details style="border: 1px solid #eaecef; border-radius: 6px; padding: 10px; margin-bottom: 16px; background-color: #f9f9f9;">
 <summary style="cursor: pointer; font-weight: bold; margin: -10px -10px 0; padding: 10px; background-color: #f0f0f0; border-bottom: 1px solid #eaecef; border-top-left-radius: 6px; border-top-right-radius: 6px;">View Older News (Click to Expand)</summary>
@@ -271,7 +271,7 @@ Combine `--recursive` with `--fast` to validate the entire catalog walk with Fas
 stac-check catalog.json --recursive --fast
 ```
 
-In fast recursive mode, `--max-depth` is ignored (the full catalog is validated) and `--headers` still apply to remote fetches. Note that FastValidator resolves schemas from schemas.stacspec.org, which does not host pre-1.0 schemas, so documents older than STAC 1.0 may fail schema resolution in fast mode.
+In fast recursive mode, `--max-depth` is ignored (the full catalog is validated) and `--headers` still apply to remote fetches. Use `--fast-linting` instead of `--fast` to also run linting and geometry checks on every object in the walk. Note that FastValidator resolves schemas from schemas.stacspec.org, which does not host pre-1.0 schemas, so documents older than STAC 1.0 may fail schema resolution in fast mode.
 
 <pre><b>stac-check: STAC spec validation and linting tool</b>
 
