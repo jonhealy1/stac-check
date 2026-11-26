@@ -19,16 +19,9 @@ The intent of this project is to provide a validation tool that also follows the
 
 ## Latest News
 
-- **11/30/2026:** 🚀 **stac-check 2.0!** The legacy validation engine has been removed — stac-check now validates everything with FastJSONSchema in a single pass, and recursive display no longer re-fetches or re-validates every asset. `--fast` now means "validation only": it skips linting and geometry checks for maximum speed, and `--fast-linting` has been removed (linting runs by default). `--max-depth` is honored in recursive mode, `--assets`/`--links` checks now work with every mode, and STAC documents older than 1.0.0 are rejected with a clear error instead of a cryptic schema failure. See the [2.0.0 changelog entry](CHANGELOG.md#v200) for the full migration notes.
+- **11/26/2026:** 🚀 **stac-check 2.0!** The legacy validation engine has been removed — stac-check now validates everything with FastJSONSchema in a single pass, and recursive display no longer re-fetches or re-validates every asset. `--fast` now means "validation only": it skips linting and geometry checks for maximum speed, and `--fast-linting` has been removed (linting runs by default). `--max-depth` is honored in recursive mode, `--assets`/`--links` checks now work with every mode, and STAC documents older than 1.0.0 are rejected with a clear error instead of a cryptic schema failure. See the [2.0.0 changelog entry](CHANGELOG.md#v200) for the full migration notes.
 
-<details style="border: 1px solid #eaecef; border-radius: 6px; padding: 10px; margin-bottom: 16px; background-color: #f9f9f9;">
-<summary style="cursor: pointer; font-weight: bold; margin: -10px -10px 0; padding: 10px; background-color: #f0f0f0; border-bottom: 1px solid #eaecef; border-top-left-radius: 6px; border-top-right-radius: 6px;">View Older News (Click to Expand)</summary>
-
--------------
-
-- **11/26/2026:** ⚡ **Fast Recursive Validation!** `--fast` now works with `--recursive`, validating an entire catalog and all of its linked objects with FastJSONSchema in a single pass instead of re-fetching and re-validating every asset during display. In our benchmarks it validated a local catalog of 61 objects **~30× faster** than standard recursion (0.08s vs 2.5s validation time, ~19× end-to-end) and a remote catalog end-to-end **~6× faster** (2.9s vs 17.6s). Custom `--headers` are applied to remote fetches, `--fast-linting` additionally runs linting and geometry checks per object, and results are shown in the compact summary with errors grouped across the whole walk.
-
-</details>
+- **11/26/2026:** ⚡ **Fast Recursive Validation! (v1.15.0)** `--fast` now works with `--recursive`, validating an entire catalog and all of its linked objects with FastJSONSchema in a single pass instead of re-fetching and re-validating every asset during display. In our benchmarks it validated a local catalog of 61 objects **~30× faster** than standard recursion (0.08s vs 2.5s validation time, ~19× end-to-end) and a remote catalog end-to-end **~6× faster** (2.9s vs 17.6s). Custom `--headers` are applied to remote fetches, `--fast-linting` additionally runs linting and geometry checks per object (removed in 2.0.0 — linting is now the default), and results are shown in the compact summary with errors grouped across the whole walk.
 
 ## Table of Contents
 
