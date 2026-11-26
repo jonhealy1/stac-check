@@ -250,6 +250,14 @@ This object has 4 links
 stac-check https://raw.githubusercontent.com/stac-utils/pystac/main/tests/data-files/examples/0.9.0/collection-spec/examples/landsat-collection.json --recursive
 ```
 
+Combine `--recursive` with `--fast` to validate the entire catalog walk with FastValidator in a single pass — dramatically faster for large or remote catalogs:
+
+```bash
+stac-check catalog.json --recursive --fast
+```
+
+In fast recursive mode, `--max-depth` is ignored (the full catalog is validated) and `--headers` still apply to remote fetches. Note that FastValidator resolves schemas from schemas.stacspec.org, which does not host pre-1.0 schemas, so documents older than STAC 1.0 may fail schema resolution in fast mode.
+
 <pre><b>stac-check: STAC spec validation and linting tool</b>
 
 Please upgrade from version 0.9.0 to version 1.1.0!
@@ -441,6 +449,8 @@ For large STAC collections or when you need maximum validation speed, use the `-
 - **`--fast`**: Fastest mode - skips geometry checks and best practices linting, focuses only on STAC spec compliance
 - **`--fast-linting`**: Fast mode with linting - skips geometry checks but includes best practices checks for code quality
 
+Fast validation also works with `--recursive`, validating a catalog and all its linked objects with FastJSONSchema in one pass (see [Recursive Validation](#recursive-validation)).
+
 **Fast Validation (Spec Only) of a Large Item Collection:**
 
 ```bash
@@ -492,6 +502,7 @@ This will show both validation errors and best practices warnings in a compact, 
 
 Use `--fast` when:
 - Validating large collections (100+ items)
+- Recursively validating large or remote catalogs (`--recursive --fast`)
 - You only need STAC spec compliance
 - You want maximum validation speed
 
@@ -574,7 +585,7 @@ This object has 5 collections
 
 Documentation is automatically built and published to GitHub Pages on every push to the `main` branch. You can view the latest version at [stac-utils.github.io/stac-check](https://stac-utils.github.io/stac-check/).
 
-To build the documentation locally (for development or testing), you'll need to install the development dependencies first:
+To build the documentation locally (for development or testing), you'll need Python >= 3.11 and the documentation dependencies:
 
 ```bash
 # Install the package with documentation dependencies
