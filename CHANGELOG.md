@@ -6,6 +6,31 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ## Unreleased
 
+## [v2.0.0] - 2026-11-30
+
+### Changed
+
+- **Single validation engine**: the legacy `StacValidate` (jsonschema) engine has been removed; all validation now runs through `FastValidator` (fastjsonschema) from stac-valid. `validation_method`/`validator_engine` report `"FastJSONSchema"` and `error_type` reports `"FastValidationError"` instead of `"JSONSchemaValidationError"`
+- `--fast` is redefined as "validation only": it skips linting and geometry checks for maximum speed in every mode
+- `--fast-linting` is deprecated and warns on use; linting and geometry checks now run by default, including per object during `--recursive`
+- `--max-depth` is now honored in recursive mode (objects at or beyond the limit are not validated); it was previously ignored in fast mode
+- `--pydantic` is now backed by `stac-pydantic` directly via the `stac-check[pydantic]` extra rather than `stac-valid[pydantic]`
+- Recursive display no longer re-fetches and re-validates every asset; per-asset linting runs on the documents already loaded during the walk, removing quadratic remote-fetch behavior on large catalogs
+- Recursive validation of in-memory dictionaries validates only the document itself (child links cannot be resolved without a base path) and warns
+- Local collection files passed to `--collections`/`--item-collection` are always validated in a single batched pass; `--fast` only controls whether per-item linting runs
+- `--links`/`--assets` checks are implemented natively: relative link hrefs resolve against the document URL with proper `urljoin` semantics, requests are streamed with timeouts, and `--headers` are honored
+- Validation messages no longer include `failed_schema`, `recommendation`, or `error_verbose`; the `errors` list carries `{error_message, affected_items, count}` entries instead
+
+### Removed
+
+- Support for STAC versions older than 1.0.0: pre-1.0 documents now fail fast with a clear `UnsupportedVersionError` instead of a cryptic schema fetch error
+- `Linter`'s `fast_linting` parameter and the `stac_check.fast_validator_wrapper` module (`validate_collection_fast` and `extract_schemas` moved to `stac_check.api_lint`)
+
+### Fixed
+
+- `--assets`/`--links` checks now run in every mode (they were silently skipped in fast mode)
+- Malformed self/alternate links no longer fabricate bogus resolved URLs (e.g. `http://catalog/collection.json`) in link checks
+
 ## [v1.15.1] - 2026-11-26
 
 ### Fixed
@@ -380,7 +405,8 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - Validation from stac-validator 2.3.0
 - Links and assets validation checks
 
-[Unreleased]: https://github.com/stac-utils/stac-check/compare/v1.15.1...main
+[Unreleased]: https://github.com/stac-utils/stac-check/compare/v2.0.0...main
+[v2.0.0]: https://github.com/stac-utils/stac-check/compare/v1.15.1...v2.0.0
 [v1.15.1]: https://github.com/stac-utils/stac-check/compare/v1.15.0...v1.15.1
 [v1.15.0]: https://github.com/stac-utils/stac-check/compare/v1.14.0...v1.15.0
 [v1.14.0]: https://github.com/stac-utils/stac-check/compare/v1.13.0...v1.14.0
