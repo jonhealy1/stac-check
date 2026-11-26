@@ -85,7 +85,7 @@ def validate_collection_fast(
 
     # Extract validation results from FastValidator message
     schemas_checked = msg.get("schemas_checked", [])
-    errors = msg.get("errors", [])
+    errors = msg.get("errors") or []
 
     # Build a map of failed item IDs for quick lookup
     failed_items: Dict[str, List[str]] = {}
@@ -95,6 +95,12 @@ def validate_collection_fast(
                 failed_items[item_id] = []
             failed_items[item_id].append(error.get("error_message", ""))
 
+    # Early-return failures (unsupported version, load errors) carry no
+    # per-item errors; the file-level error applies to every item
+    file_level_error = None
+    if not msg.get("valid_stac", True) and not failed_items:
+        file_level_error = msg.get("error_message") or "Validation failed"
+
     # Create per-item results
     for idx, obj in enumerate(items):
         item_id = obj.get("id", f"unknown-{idx}")
@@ -102,8 +108,10 @@ def validate_collection_fast(
         item_schemas = extract_schemas(obj)
 
         # Determine if item is valid
-        is_valid = item_id not in failed_items
+        is_valid = item_id not in failed_items and file_level_error is None
         error_messages = failed_items.get(item_id, [])
+        if file_level_error is not None:
+            error_messages = [file_level_error]
 
         # Get best practices and geometry errors for this item (linting checks
         # only, no re-validation)
@@ -188,6 +196,9 @@ class ApiLinter:
         self.start_time = time.time()
         self.total_time = 0.0
         self.schemas_checked: List[str] = []
+        # Set when the response contains a different list key than the one
+        # requested (e.g. "features" seen while validating --collections)
+        self.mismatched_list_key: Optional[str] = None
 
     def _get_validator_version(self) -> str:
         """Get the version of stac-validator being used.
@@ -255,7 +266,21 @@ class ApiLinter:
 
         while stac_file:
             response = self._fetch_and_parse(stac_file)
-            objects = response.get(self.object_list_key, [])
+            objects = response.get(self.object_list_key)
+            if not isinstance(objects, list):
+                objects = []
+                for alt in ("features", "collections"):
+                    if alt != self.object_list_key and isinstance(
+                        response.get(alt), list
+                    ):
+                        self.mismatched_list_key = alt
+                        break
+                # A bare STAC object (not a list response) is validated
+                # as itself rather than silently checking nothing
+                if self.mismatched_list_key is None and (
+                    response.get("type") or response.get("stac_version")
+                ):
+                    objects = [response]
             for obj in objects:
                 obj_id = obj.get("id")
                 base_url = get_base_url(stac_file)
@@ -302,6 +327,18 @@ class ApiLinter:
             and self.object_list_key == "features"
         )
         if is_local_file:
+            try:
+                with open(self.source) as f:
+                    envelope = json.load(f)
+                if isinstance(envelope, dict):
+                    for alt in ("features", "collections"):
+                        if alt != self.object_list_key and isinstance(
+                            envelope.get(alt), list
+                        ):
+                            self.mismatched_list_key = alt
+                            return []
+            except (OSError, ValueError):
+                pass
             try:
                 results, total_time, schemas = validate_collection_fast(
                     self.source,

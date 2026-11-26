@@ -358,12 +358,11 @@ def _display_validation_summary(
         fast: Whether fast mode is enabled (for compact output and timing display)
         total_time: Total validation time in milliseconds (for fast mode)
     """
+
     passed = 0
     failed = []
     warnings = []
     all_paths = []
-    total_setup_time = 0.0
-    total_exec_time = 0.0
     error_registry: Dict[str, List[str]] = {}
     geometry_registry: Dict[str, List[str]] = {}
 
@@ -420,20 +419,6 @@ def _display_validation_summary(
                 geometry_registry[m] = []
             if path not in geometry_registry[m]:
                 geometry_registry[m].append(path)
-
-        # Accumulate timing information if available
-        if fast and result.get("fast_setup_time"):
-            try:
-                setup_str = result.get("fast_setup_time", "0").split()[0]
-                total_setup_time += float(setup_str)
-            except (ValueError, IndexError):
-                pass
-        if fast and result.get("fast_exec_time"):
-            try:
-                exec_str = result.get("fast_exec_time", "0").split()[0]
-                total_exec_time += float(exec_str)
-            except (ValueError, IndexError):
-                pass
 
     # Use fast validation summary for fast mode
     if fast:
@@ -493,15 +478,11 @@ def _display_validation_summary(
         else:
             click.secho("  (Use --verbose to see all assets)", fg="yellow")
 
-        # Display timing information if in fast mode
-        if fast and (total_setup_time > 0 or total_exec_time > 0):
+        if total_time > 0:
             click.secho()
-            click.secho("⚡ FastValidator Timing:", bold=True, fg="cyan")
-            click.secho(f"  Total Setup Time: {total_setup_time:.2f} ms")
-            click.secho(f"  Total Execution Time: {total_exec_time:.2f} ms")
-            if len(all_paths) > 0:
-                avg_time = total_exec_time / len(all_paths)
-                click.secho(f"  Average per Item: {avg_time:.3f} ms")
+            click.secho("⚡ Timing Information:", bold=True, fg="cyan")
+            click.secho(f"  Total Validation Time: {total_time:.2f} ms")
+            click.secho(f"  Average per Object: {total_time / len(all_paths):.3f} ms")
 
         click.secho()
 
@@ -771,6 +752,12 @@ def collections_message(
     """
     if results is None:
         results = linter.lint_all()
+
+    # In fast mode, use compact display
+    if linter.fast:
+        schemas = linter.schemas_checked if hasattr(linter, "schemas_checked") else None
+        _display_fast_validation_summary(results, linter.total_time, schemas)
+        return
 
     # Define a function to create Linter instances from API results
     def create_collection_linter(msg):

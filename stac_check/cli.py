@@ -209,18 +209,44 @@ def main(
             verbose=verbose,
             fast=fast,
         )
-        results = api_linter.lint_all()
+        try:
+            results = api_linter.lint_all()
+            # Create a dummy Linter instance for display purposes
+            display_linter = Linter(
+                file,
+                assets=assets,
+                links=links,
+                headers=dict(header),
+                pydantic=pydantic,
+                verbose=verbose,
+                fast=fast,
+            )
+        except (OSError, ValueError, requests.exceptions.RequestException) as e:
+            click.secho(f"Error: {e}", fg="red", err=True)
+            sys.exit(1)
 
-        # Create a dummy Linter instance for display purposes
-        display_linter = Linter(
-            file,
-            assets=assets,
-            links=links,
-            headers=dict(header),
-            pydantic=pydantic,
-            verbose=verbose,
-            fast=fast,
-        )
+        if not results:
+            if api_linter.mismatched_list_key:
+                suggested = (
+                    "--item-collection"
+                    if api_linter.mismatched_list_key == "features"
+                    else "--collections"
+                )
+                click.secho(
+                    f"Error: no '{api_linter.object_list_key}' objects found in "
+                    f"{file}; the response contains "
+                    f"'{api_linter.mismatched_list_key}' — did you mean {suggested}?",
+                    fg="red",
+                    err=True,
+                )
+                sys.exit(1)
+            click.secho(
+                f"Warning: no '{api_linter.object_list_key}' objects found in "
+                f"{file}; nothing was validated.",
+                fg="yellow",
+                err=True,
+            )
+            sys.exit(0)
 
         # Show intro message in the terminal
         intro_message(display_linter)
@@ -247,18 +273,28 @@ def main(
         sys.exit(0 if all(msg.get("valid_stac") is True for msg in results) else 1)
     else:
         # Handle file-based validation (single file or recursive)
-        linter = Linter(
-            file,
-            assets=assets,
-            links=links,
-            recursive=recursive,
-            max_depth=max_depth,
-            assets_open_urls=not no_assets_urls,
-            headers=dict(header),
-            pydantic=pydantic,
-            verbose=verbose,
-            fast=fast,
-        )
+        try:
+            linter = Linter(
+                file,
+                assets=assets,
+                links=links,
+                recursive=recursive,
+                max_depth=max_depth,
+                assets_open_urls=not no_assets_urls,
+                headers=dict(header),
+                pydantic=pydantic,
+                verbose=verbose,
+                fast=fast,
+            )
+        except FileNotFoundError:
+            click.secho(f"Error: file not found: {file}", fg="red", err=True)
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            click.secho(f"Error: invalid JSON in {file}: {e}", fg="red", err=True)
+            sys.exit(1)
+        except (OSError, ValueError, requests.exceptions.RequestException) as e:
+            click.secho(f"Error: {e}", fg="red", err=True)
+            sys.exit(1)
 
         intro_message(linter)
 

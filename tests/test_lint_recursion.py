@@ -326,6 +326,22 @@ def test_summary_includes_geometry_issues(capsys):
     assert "bad geometry" not in out
 
 
+def test_summary_fast_accepts_float_timing(capsys):
+    """FastValidator reports timing fields as floats; the summary must
+    not assume 'X ms' strings."""
+    results = [
+        {
+            "path": "a.json",
+            "valid_stac": True,
+            "fast_setup_time": 1.5,
+            "fast_exec_time": 12.34,
+        }
+    ]
+    display_messages._display_validation_results(results, title="Test", fast=True)
+    out = capsys.readouterr().out
+    assert "Passed: 1/1" in out
+
+
 def test_summary_geometry_issues_verbose_lists_paths(capsys):
     """--verbose lists the affected asset paths under each issue."""
     results = [

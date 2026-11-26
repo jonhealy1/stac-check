@@ -21,7 +21,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - STAC API `{"collections": [...]}` endpoint responses are now auto-detected like item collections, so `stac-check <url-or-file>` validates every collection without requiring `--collections`
 - `--links`/`--assets` checks are implemented natively: relative link hrefs resolve against the document URL with proper `urljoin` semantics, requests are streamed with timeouts, and `--headers` are honored
 - Validation messages no longer include `failed_schema`, `recommendation`, or `error_verbose`; the `errors` list carries `{error_message, affected_items, count}` entries instead
-- Multi-asset modes (`--recursive`, `--collections`, `--item-collection`) now print a header and validation summary by default; per-asset detail requires `--verbose`. The summary's failed-asset list now includes each asset's error message, and geometry linting findings are flagged with a count of affected assets and a hint to re-run with `--verbose` for details
+- Multi-asset modes (`--recursive`, `--collections`, `--item-collection`) now print a header and validation summary by default; per-asset detail requires `--verbose`. The summary's failed-asset list now includes each asset's error message, and geometry linting findings are flagged with a count of affected assets and a hint to re-run with `--verbose` for details. The summary also shows total and average-per-object validation timing in every multi-asset mode, not just `--fast`
 
 ### Removed
 
@@ -33,6 +33,10 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - `--assets`/`--links` checks now run in every mode (they were silently skipped in fast mode)
 - Malformed self/alternate links no longer fabricate bogus resolved URLs (e.g. `http://catalog/collection.json`) in link checks
 - Local `{"collections": [...]}` files passed to `--collections` are validated per collection instead of being treated as a single object
+- `--collections --fast` no longer crashes aggregating FastValidator's float timing fields, and uses the same compact fast-mode summary as `--item-collection --fast`
+- `--item-collection` no longer reports objects as valid when validation fails at the file level (e.g. pre-1.0 STAC versions, load errors) — the failure message is applied to every item
+- Missing files and non-JSON input now exit 1 with a clean error message instead of an unhandled traceback
+- `--collections`/`--item-collection` no longer silently succeed validating nothing: a response containing the other list shape errors with a flag suggestion, an empty list warns that nothing was validated, and a bare STAC object passed to either flag is validated as itself
 - Extension schemas declaring an older JSON Schema dialect (e.g. draft-07 schemas like Portolan using the tuple form of `items`) no longer crash validation: extension schemas are compiled by fastjsonschema under their own semantics instead of the legacy engine's hardcoded 2020-12 resolver ([#159](https://github.com/stac-utils/stac-check/issues/159))
 
 ## [v1.15.1] - 2026-11-26

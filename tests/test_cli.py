@@ -381,6 +381,89 @@ def test_cli_auto_detect_collections(runner):
     assert "28 Assets Checked" in result.output
 
 
+def test_cli_missing_file_clean_error(runner):
+    """A nonexistent file exits 1 with a clean error, not a traceback."""
+    result = runner.invoke(cli_main, ["/nonexistent/file.json"])
+
+    assert result.exit_code == 1
+    assert "file not found" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_cli_invalid_json_clean_error(runner):
+    """A non-JSON file exits 1 with a clean error, not a traceback."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+        tmp.write("this is not json")
+        tmp_path = tmp.name
+
+    try:
+        result = runner.invoke(cli_main, [tmp_path])
+        assert result.exit_code == 1
+        assert "invalid JSON" in result.output
+        assert "Traceback" not in result.output
+    finally:
+        os.unlink(tmp_path)
+
+
+def test_cli_collections_flag_on_feature_collection_errors(runner):
+    """--collections on a FeatureCollection suggests --item-collection."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/feature_collection.json"
+    )
+    result = runner.invoke(cli_main, [test_file, "--collections"])
+
+    assert result.exit_code == 1
+    assert "did you mean --item-collection" in result.output
+
+
+def test_cli_item_collection_flag_on_collections_errors(runner):
+    """--item-collection on a collections response suggests --collections."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/collections.json"
+    )
+    result = runner.invoke(cli_main, [test_file, "--item-collection"])
+
+    assert result.exit_code == 1
+    assert "did you mean --collections" in result.output
+
+
+def test_cli_empty_object_list_warns(runner):
+    """An empty list response warns instead of reporting Passed: 0/0."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+        json.dump({"type": "FeatureCollection", "features": []}, tmp)
+        tmp_path = tmp.name
+
+    try:
+        result = runner.invoke(cli_main, [tmp_path, "--item-collection"])
+        assert result.exit_code == 0
+        assert "nothing was validated" in result.output
+    finally:
+        os.unlink(tmp_path)
+
+
+def test_cli_item_collection_pre_1_0_fails(runner):
+    """--item-collection reports file-level failures (e.g. unsupported
+    STAC version) instead of marking the item valid."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/0.9.0/landsat8-sample.json"
+    )
+    result = runner.invoke(cli_main, [test_file, "--item-collection"])
+
+    assert result.exit_code == 1
+    assert "Failed: 1/1" in result.output
+    assert "0.9.0 is not supported" in result.output
+
+
+def test_cli_collections_flag_on_single_collection(runner):
+    """--collections on a lone Collection validates the object itself."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/collection.json"
+    )
+    result = runner.invoke(cli_main, [test_file, "--collections"])
+
+    assert "1 Assets Checked" in result.output
+
+
 def test_cli_auto_detect_respects_explicit_flag(runner):
     """Test that explicit --item-collection flag still works."""
     test_file = os.path.join(
