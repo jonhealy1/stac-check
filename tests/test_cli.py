@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-from stac_check.cli import is_item_collection
+from stac_check.cli import detect_api_response_type, is_item_collection
 from stac_check.cli import main as cli_main
 
 
@@ -81,7 +81,9 @@ def test_cli_output_to_file(runner):
         assert os.path.exists(output_file)
         with open(output_file, "r") as f:
             content = f.read()
-            assert "Passed: True" in content
+            # Without --verbose the output file holds the summary only
+            assert "Passed: 1/1" in content
+            assert "Asset 1:" not in content
     finally:
         if os.path.exists(output_file):
             os.unlink(output_file)
@@ -311,6 +313,72 @@ def test_cli_auto_detect_item_collection(runner):
     assert result.exit_code == 0
     # Should automatically detect and show item collection validation
     assert "Item Collection" in result.output or "Assets Checked" in result.output
+
+
+def test_detect_api_response_type_collections():
+    """A collections endpoint response is detected as 'collections'."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/collections.json"
+    )
+    assert detect_api_response_type(test_file) == "collections"
+
+
+def test_detect_api_response_type_item_collection():
+    """A FeatureCollection is detected as 'item_collection'."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/feature_collection.json"
+    )
+    assert detect_api_response_type(test_file) == "item_collection"
+
+
+def test_detect_api_response_type_single_object():
+    """A regular STAC object returns None."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/core-item.json"
+    )
+    assert detect_api_response_type(test_file) is None
+
+
+def test_detect_api_response_type_empty_collections():
+    """An empty collections list is not auto-detected."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+        json.dump({"collections": [], "links": []}, tmp)
+        tmp_path = tmp.name
+
+    try:
+        assert detect_api_response_type(tmp_path) is None
+    finally:
+        os.unlink(tmp_path)
+
+
+def test_detect_api_response_type_collections_mock_url():
+    """A mocked /collections URL response is detected as 'collections'."""
+    mock_response = MagicMock()
+    mock_response.json.return_value = {
+        "collections": [{"id": "test", "type": "Collection"}],
+        "links": [],
+    }
+
+    with (
+        patch("stac_check.cli.requests.get", return_value=mock_response),
+        patch("stac_check.cli.is_valid_url", return_value=True),
+    ):
+        assert (
+            detect_api_response_type("https://example.com/collections") == "collections"
+        )
+
+
+def test_cli_auto_detect_collections(runner):
+    """Test that the CLI auto-detects a collections endpoint response."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/collections.json"
+    )
+    result = runner.invoke(cli_main, [test_file])
+
+    assert "Collections: Validate all collections" in result.output
+    assert "Assets Checked" in result.output
+    # 28 collections in the fixture, not a single-object validation
+    assert "28 Assets Checked" in result.output
 
 
 def test_cli_auto_detect_respects_explicit_flag(runner):

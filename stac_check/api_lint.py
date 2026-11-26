@@ -291,12 +291,15 @@ class ApiLinter:
         """
         results_by_url = {}
 
-        # Local collection files are validated in one pass; --fast only
-        # controls whether per-item linting runs, not the engine
+        # Local FeatureCollection files are validated in one pass; --fast only
+        # controls whether per-item linting runs, not the engine. Other list
+        # shapes (e.g. {"collections": [...]}) go through iterate_objects since
+        # FastValidator only understands "features".
         is_local_file = (
             isinstance(self.source, str)
             and self.source.endswith((".json", ".geojson"))
             and not self.source.startswith(("http://", "https://"))
+            and self.object_list_key == "features"
         )
         if is_local_file:
             try:

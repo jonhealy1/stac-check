@@ -263,8 +263,8 @@ def test_linter_recursive_fast_validates_root_once(monkeypatch):
 
 
 def test_recursive_message_fast(capsys):
-    """Fast recursive display shows fallback per-asset output plus the
-    compact fast summary with timing information."""
+    """Fast recursive display shows the compact summary with timing
+    information; per-asset output requires --verbose."""
     file = "sample_files/1.0.0/catalog-with-bad-item.json"
     linter = Linter(file, recursive=True, fast=True)
     display_messages.recursive_message(linter)
@@ -272,11 +272,79 @@ def test_recursive_message_fast(capsys):
     assert "Passed: 2/3" in out
     assert "Failed: 1/3" in out
     assert "Total Validation Time" in out
+    assert "Asset 1:" not in out
+
+
+def test_recursive_message_verbose_shows_assets(capsys):
+    """--verbose shows the per-asset detail blocks."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True)
+    display_messages.recursive_message(linter, verbose=True)
+    out = capsys.readouterr().out
+    assert "Asset 1:" in out
+    assert "Passed: 2/3" in out
+
+
+def test_recursive_message_summary_lists_errors(capsys):
+    """Without --verbose the summary still reports why an asset failed."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True)
+    display_messages.recursive_message(linter)
+    out = capsys.readouterr().out
+    assert "Asset 1:" not in out
+    assert "Failed Assets:" in out
+    assert "bad-item.json" in out
+
+
+def test_summary_includes_geometry_issues(capsys):
+    """The non-verbose summary flags geometry linting findings with a
+    hint to re-run with --verbose."""
+    results = [
+        {
+            "path": "a.json",
+            "valid_stac": True,
+            "geometry_errors": [
+                "Geometry Validation [BETA]: ",
+                "bad geometry",
+                "",
+            ],
+        },
+        {
+            "path": "b.json",
+            "valid_stac": True,
+            "geometry_errors": [
+                "Geometry Validation [BETA]: ",
+                "bad geometry",
+                "",
+            ],
+        },
+    ]
+    display_messages._display_validation_results(results, title="Test")
+    out = capsys.readouterr().out
+    assert "2 asset(s) may have geometry issues" in out
+    assert "--verbose" in out
+    assert "bad geometry" not in out
+
+
+def test_summary_geometry_issues_verbose_lists_paths(capsys):
+    """--verbose lists the affected asset paths under each issue."""
+    results = [
+        {
+            "path": "a.json",
+            "valid_stac": True,
+            "geometry_errors": ["Geometry Validation [BETA]: ", "bad geometry"],
+        }
+    ]
+    display_messages._display_validation_results(
+        results, title="Test", verbose=True, create_linter_func=lambda msg: None
+    )
+    out = capsys.readouterr().out
+    assert "- a.json" in out
 
 
 def test_recursive_message_fast_silences_output(monkeypatch, capsys):
-    """--fast recursive output silences per-asset display for large catalogs
-    without re-instantiating a Linter for every result."""
+    """--fast --verbose recursive output silences per-asset display for
+    large catalogs without re-instantiating a Linter for every result."""
     file = "sample_files/1.0.0/catalog-with-bad-item.json"
     linter = Linter(file, recursive=True, fast=True)
     linter.validate_all = [
@@ -297,7 +365,7 @@ def test_recursive_message_fast_silences_output(monkeypatch, capsys):
         raise AssertionError("Linter must not be re-created in fast mode")
 
     monkeypatch.setattr(display_messages, "Linter", _no_linter)
-    display_messages.recursive_message(linter)
+    display_messages.recursive_message(linter, verbose=True)
     out = capsys.readouterr().out
     assert "silencing output" in out
     assert "Passed: 25/25" in out

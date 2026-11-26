@@ -19,6 +19,42 @@ from stac_check.lint import Linter
 from stac_check.utilities import handle_output
 
 
+def detect_api_response_type(file: str, headers: dict = None) -> Optional[str]:
+    """Detect if a file or URL is a STAC API list response.
+
+    Args:
+        file: Path or URL to the file
+        headers: Optional HTTP headers for URL requests
+
+    Returns:
+        "item_collection" for a FeatureCollection with features,
+        "collections" for a collections endpoint response,
+        None otherwise
+    """
+    try:
+        if is_valid_url(file):
+            resp = requests.get(file, headers=headers or {})
+            data = resp.json()
+        else:
+            with open(file) as f:
+                data = json.load(f)
+    except Exception:
+        # If we can't determine, return None
+        return None
+
+    if not isinstance(data, dict):
+        return None
+    if (
+        data.get("type") == "FeatureCollection"
+        and isinstance(data.get("features"), list)
+        and len(data["features"]) > 0
+    ):
+        return "item_collection"
+    if isinstance(data.get("collections"), list) and len(data["collections"]) > 0:
+        return "collections"
+    return None
+
+
 def is_item_collection(file: str, headers: dict = None) -> bool:
     """Detect if a file is an item collection (FeatureCollection with features).
 
@@ -29,25 +65,7 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
     Returns:
         True if the file is an item collection, False otherwise
     """
-    try:
-        if is_valid_url(file):
-            resp = requests.get(file, headers=headers or {})
-            data = resp.json()
-        else:
-            with open(file) as f:
-                data = json.load(f)
-
-        # Check if it's a FeatureCollection with features
-        return (
-            isinstance(data, dict)
-            and data.get("type") == "FeatureCollection"
-            and "features" in data
-            and isinstance(data.get("features"), list)
-            and len(data.get("features", [])) > 0
-        )
-    except Exception:
-        # If we can't determine, return False
-        return False
+    return detect_api_response_type(file, headers) == "item_collection"
 
 
 @click.option(
@@ -110,7 +128,7 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
     "--verbose",
     "-v",
     is_flag=True,
-    help="Enable verbose output.",
+    help="Show per-asset validation details; without it only a summary is printed.",
 )
 @click.option(
     "--fast",
@@ -173,10 +191,13 @@ def main(
             )
             pydantic = False
 
-    # Auto-detect item collection if no explicit flag is set
+    # Auto-detect API list responses if no explicit flag is set
     if not collections and not item_collection and not recursive:
-        if is_item_collection(file, headers=dict(header)):
+        detected = detect_api_response_type(file, headers=dict(header))
+        if detected == "item_collection":
             item_collection = True
+        elif detected == "collections":
+            collections = True
 
     if collections or item_collection:
         # Handle API-based validation (collections or item collections)

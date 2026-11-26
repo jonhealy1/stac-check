@@ -105,7 +105,8 @@ Options:
   --header KEY VALUE       HTTP header to include in the requests. Can be used
                            multiple times.
   --pydantic               Use stac-pydantic for enhanced validation with Pydantic models.
-  --verbose                Show verbose error messages.
+  -v, --verbose            Show per-asset validation details; without it only
+                           a summary is printed.
   -o, --output FILE        Save output to the specified file.
   --fast                   Skip linting and geometry checks for maximum validation
                            speed. Also applies to --recursive.
@@ -252,7 +253,7 @@ This object has 4 links
 ### Recursive Validation
 
 ```bash
-stac-check https://digital-atlas.s3.amazonaws.com/stac/public_stac/population/worldpop_2020/collection.json --recursive
+stac-check https://digital-atlas.s3.amazonaws.com/stac/public_stac/population/worldpop_2020/collection.json --recursive --verbose
 ```
 
 Recursive validation walks the whole catalog in a single pass with FastJSONSchema and runs linting and geometry checks on every object by default. Add `--fast` to skip those checks for maximum speed:
@@ -262,6 +263,8 @@ stac-check catalog.json --recursive --fast
 ```
 
 `--max-depth` caps how deep the walk goes (objects at or beyond the limit are not validated), and `--headers` apply to remote fetches. Note that stac-check validates STAC 1.0.0 and later; documents declaring an older `stac_version` fail with a clear unsupported-version error instead of a cryptic schema failure.
+
+Multi-asset modes (`--recursive`, `--collections`, `--item-collection`) print a header and a validation summary by default. Add `--verbose`/`-v` for per-asset detail, as shown below:
 
 <pre><b>stac-check: STAC spec validation and linting tool</b>
 
@@ -491,7 +494,7 @@ Use `--fast` when:
 
 ### STAC API Validation
 
-stac-check can validate STAC API endpoints, including item collections and collections endpoints. It supports pagination and can validate multiple pages of results.
+stac-check can validate STAC API endpoints, including item collections and collections endpoints. It supports pagination and can validate multiple pages of results. Item collection (`{"type": "FeatureCollection", "features": [...]}`) and collections endpoint (`{"collections": [...]}`) responses are auto-detected, so the corresponding flags are optional.
 
 **Validating an Item Collection Endpoint:**
 

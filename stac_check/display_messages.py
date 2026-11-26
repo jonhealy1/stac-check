@@ -365,6 +365,7 @@ def _display_validation_summary(
     total_setup_time = 0.0
     total_exec_time = 0.0
     error_registry: Dict[str, List[str]] = {}
+    geometry_registry: Dict[str, List[str]] = {}
 
     for result in results:
         path = result.get("path", "unknown")
@@ -374,9 +375,9 @@ def _display_validation_summary(
         if result.get("valid_stac"):
             passed += 1
         else:
-            failed.append(path)
             # Group errors by message for fast mode
             error_msg = result.get("error_message", "Unknown error")
+            failed.append((path, error_msg))
             if error_msg not in error_registry:
                 error_registry[error_msg] = []
             # Extract item ID from path
@@ -406,6 +407,19 @@ def _display_validation_summary(
         # Only add to warnings if there are actual messages
         if best_practices:
             warnings.append((path, best_practices))
+
+        # Collect geometry issues grouped by message; identical
+        # findings recur across assets so paths are deduplicated
+        geometry_msgs = [
+            m
+            for m in result.get("geometry_errors", [])
+            if m and m.strip() and m != "Geometry Validation [BETA]: "
+        ]
+        for m in geometry_msgs:
+            if m not in geometry_registry:
+                geometry_registry[m] = []
+            if path not in geometry_registry[m]:
+                geometry_registry[m].append(path)
 
         # Accumulate timing information if available
         if fast and result.get("fast_setup_time"):
@@ -439,8 +453,10 @@ def _display_validation_summary(
         if failed:
             click.secho(f"❌ Failed: {len(failed)}/{len(all_paths)}", fg="red")
             click.secho("\nFailed Assets:", fg="red")
-            for path in failed:
-                click.secho(f"  - {path}")
+            for path, error_msg in failed:
+                click.secho(f"  - {path}", fg="red")
+                if error_msg:
+                    click.secho(f"      {error_msg}", fg="red")
 
         if warnings:
             click.secho(
@@ -453,6 +469,22 @@ def _display_validation_summary(
                         click.secho(f"    • {msg}", fg="yellow")
             else:
                 click.secho("  (Use --verbose to see details)", fg="yellow")
+
+        if geometry_registry:
+            affected = len({p for paths in geometry_registry.values() for p in paths})
+            if verbose:
+                click.secho(f"\n⚠️  Geometry Issues ({affected} assets)", fg="yellow")
+                for msg, paths in geometry_registry.items():
+                    click.secho(f"\n  {msg}", fg="yellow")
+                    click.secho(f"    Affected: {len(paths)} asset(s)", fg="yellow")
+                    for p in paths:
+                        click.secho(f"      - {p}", fg="yellow")
+            else:
+                click.secho(
+                    f"\n⚠️  {affected} asset(s) may have geometry issues "
+                    "(re-run with --verbose for details)",
+                    fg="yellow",
+                )
 
         click.secho(f"\n🔍 All {len(all_paths)} Assets Checked")
         if verbose or len(all_paths) <= 12:
@@ -488,8 +520,8 @@ def _display_validation_results(
 
     This function handles the common logic for displaying validation results from
     different sources (item collections, recursive validation, collections, etc.).
-    It displays a header with metadata, iterates through results, and attempts to
-    create Linter instances for consistent display.
+    It displays a header with metadata and always ends with a summary. Per-asset
+    detail blocks are only shown when ``verbose`` is enabled.
 
     Args:
         results: List of validation result dictionaries to display
@@ -498,6 +530,9 @@ def _display_validation_results(
         cli_message_func: Function to use for displaying validation messages
         create_linter_func: Function to create a Linter instance from a result item
                            Should take a result dict and return a Linter instance
+        verbose: Whether to show per-asset detail blocks
+        fast: Whether fast mode is enabled (affects summary formatting)
+        total_time: Total validation time in milliseconds (for fast mode)
 
     Returns:
         None
@@ -505,23 +540,24 @@ def _display_validation_results(
     if cli_message_func is None:
         cli_message_func = cli_message
 
-    # In fast mode with many items, show first 5 items then silence
+    click.secho()
+    click.secho(title, bold=True)
+
+    # Display any metadata provided
+    if metadata:
+        for key, value in metadata.items():
+            click.secho(f"{key} = {value}")
+
+    click.secho("-------------------------")
+
+    # Per-asset detail requires --verbose; otherwise only the summary
+    # is shown. In fast verbose mode with many items, show the first 5
+    # then silence.
     show_all_items = not (fast and len(results) > 20)
     items_shown = 0
     max_items_to_show = 5
 
-    if show_all_items:
-        click.secho()
-        click.secho(title, bold=True)
-
-        # Display any metadata provided
-        if metadata:
-            for key, value in metadata.items():
-                click.secho(f"{key} = {value}")
-
-        click.secho("-------------------------")
-
-    for count, msg in enumerate(results):
+    for count, msg in enumerate(results) if verbose else ():
         # In fast mode with many items, show only first 5 then silence
         if not show_all_items and items_shown >= max_items_to_show:
             if items_shown == max_items_to_show:

@@ -17,9 +17,11 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - `--pydantic` is now backed by `stac-pydantic` directly via the `stac-check[pydantic]` extra rather than `stac-valid[pydantic]`
 - Recursive display no longer re-fetches and re-validates every asset; per-asset linting runs on the documents already loaded during the walk, removing quadratic remote-fetch behavior on large catalogs
 - Recursive validation of in-memory dictionaries validates only the document itself (child links cannot be resolved without a base path) and warns
-- Local collection files passed to `--collections`/`--item-collection` are always validated in a single batched pass; `--fast` only controls whether per-item linting runs
+- Local FeatureCollection files passed to `--collections`/`--item-collection` are always validated in a single batched pass; `--fast` only controls whether per-item linting runs
+- STAC API `{"collections": [...]}` endpoint responses are now auto-detected like item collections, so `stac-check <url-or-file>` validates every collection without requiring `--collections`
 - `--links`/`--assets` checks are implemented natively: relative link hrefs resolve against the document URL with proper `urljoin` semantics, requests are streamed with timeouts, and `--headers` are honored
 - Validation messages no longer include `failed_schema`, `recommendation`, or `error_verbose`; the `errors` list carries `{error_message, affected_items, count}` entries instead
+- Multi-asset modes (`--recursive`, `--collections`, `--item-collection`) now print a header and validation summary by default; per-asset detail requires `--verbose`. The summary's failed-asset list now includes each asset's error message, and geometry linting findings are flagged with a count of affected assets and a hint to re-run with `--verbose` for details
 
 ### Removed
 
@@ -30,6 +32,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 - `--assets`/`--links` checks now run in every mode (they were silently skipped in fast mode)
 - Malformed self/alternate links no longer fabricate bogus resolved URLs (e.g. `http://catalog/collection.json`) in link checks
+- Local `{"collections": [...]}` files passed to `--collections` are validated per collection instead of being treated as a single object
 - Extension schemas declaring an older JSON Schema dialect (e.g. draft-07 schemas like Portolan using the tuple form of `items`) no longer crash validation: extension schemas are compiled by fastjsonschema under their own semantics instead of the legacy engine's hardcoded 2020-12 resolver ([#159](https://github.com/stac-utils/stac-check/issues/159))
 
 ## [v1.15.1] - 2026-11-26
