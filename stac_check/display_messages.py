@@ -437,11 +437,26 @@ def _display_validation_summary(
 
         if failed:
             click.secho(f"❌ Failed: {len(failed)}/{len(all_paths)}", fg="red")
-            click.secho("\nFailed Assets:", fg="red")
-            for path, error_msg in failed:
-                click.secho(f"  - {path}", fg="red")
-                if error_msg:
-                    click.secho(f"      {error_msg}", fg="red")
+            if verbose:
+                click.secho("\nFailed Assets:", fg="red")
+                for path, error_msg in failed:
+                    click.secho(f"  - {path}", fg="red")
+                    if error_msg:
+                        click.secho(f"      {error_msg}", fg="red")
+            else:
+                click.secho(
+                    "\nFailed Assets (grouped by error; use --verbose for full list):",
+                    fg="red",
+                )
+                for error_msg, item_ids in error_registry.items():
+                    click.secho(f"\n❌ {error_msg}", fg="red")
+                    examples = ", ".join(item_ids[:3])
+                    if len(item_ids) > 3:
+                        examples += f" ... (and {len(item_ids) - 3} more)"
+                    click.secho(
+                        f"   Affected Items: {len(item_ids)} | Examples: {examples}",
+                        fg="red",
+                    )
 
         if warnings:
             click.secho(

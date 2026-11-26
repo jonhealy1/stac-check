@@ -34,6 +34,36 @@ def test_linter_recursive_keeps_all_results_on_failure():
     )
 
 
+def test_recursive_remote_uses_api_mode(monkeypatch):
+    """Remote sources use run_api so rel=data/items links are followed;
+    local files keep the catalog-walking run_recursive mode."""
+    from unittest.mock import MagicMock
+
+    from stac_validator.fast_validator import FastValidator
+
+    calls = []
+
+    def fake_api(self):
+        calls.append("api")
+        self.message = []
+
+    def fake_recursive(self):
+        calls.append("recursive")
+        self.message = []
+
+    monkeypatch.setattr(FastValidator, "run_api", fake_api)
+    monkeypatch.setattr(FastValidator, "run_recursive", fake_recursive)
+
+    resp = MagicMock()
+    resp.json.return_value = {"type": "Catalog", "id": "root", "links": []}
+    monkeypatch.setattr("stac_check.lint.requests.get", lambda *a, **k: resp)
+
+    Linter("https://example.com/stac", recursive=True)
+    Linter("sample_files/1.0.0/catalog.json", recursive=True)
+
+    assert calls == ["api", "recursive"]
+
+
 def test_linter_recursive_output_suppressed(capsys):
     """FastValidator's per-object output does not leak to stdout."""
     Linter("sample_files/1.0.0/catalog-with-bad-item.json", recursive=True)

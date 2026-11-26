@@ -34,6 +34,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - `--assets`/`--links` checks now run in every mode (they were silently skipped in fast mode)
 - Malformed self/alternate links no longer fabricate bogus resolved URLs (e.g. `http://catalog/collection.json`) in link checks
 - Local `{"collections": [...]}` files passed to `--collections` are validated per collection instead of being treated as a single object
+- `--recursive` on remote STAC APIs now descends the whole API (root → `rel=data` collections → `rel=items` features) instead of validating only the landing page; local/catalog files keep the `child`/`item` walk. Note: `rel=catalogs` links are not traversed (stac-valid limitation)
 - `--collections --fast` no longer crashes aggregating FastValidator's float timing fields, and uses the same compact fast-mode summary as `--item-collection --fast`
 - `--item-collection` no longer reports objects as valid when validation fails at the file level (e.g. pre-1.0 STAC versions, load errors) — the failure message is applied to every item
 - Missing files and non-JSON input now exit 1 with a clean error message instead of an unhandled traceback

@@ -535,6 +535,8 @@ class Linter:
 
     def _fast_recursive_validation(self, file: str) -> List[Dict]:
         """Recursively validate a catalog and its children using FastValidator."""
+        import sys
+
         from stac_validator.fast_validator import FastValidator
 
         class _RecursiveFastValidator(FastValidator):
@@ -555,6 +557,8 @@ class Linter:
                 # Optional user-supplied depth cap; objects at or beyond
                 # it are not validated (root is depth 0).
                 self._max_depth: Optional[int] = None
+                # Objects encountered by the walk, for the stderr progress line
+                self._checked_count = 0
 
             def _load_json_resource(self, resource_path: str) -> Dict[str, Any]:
                 original_path = resource_path
@@ -592,6 +596,11 @@ class Linter:
             ):
                 # Tolerate upstream adding parameters to this private
                 # method within the pinned stac-valid range
+                self._checked_count += 1
+                sys.stderr.write(
+                    f"\r  Validating… {self._checked_count} objects checked    "
+                )
+                sys.stderr.flush()
                 if (
                     self._max_depth is not None
                     and self._max_depth > 0
@@ -635,7 +644,16 @@ class Linter:
         with self._fast_validator_context() as captured:
             fast_validator = _RecursiveFastValidator(file, quiet=False)
             fast_validator._max_depth = self.max_depth
-            fast_validator.run_recursive()
+            # Remote sources are STAC APIs or hosted catalogs: API mode
+            # additionally follows "data"/"items" links (landing pages link
+            # to /collections via rel="data" rather than "child"/"item")
+            if file.startswith("http"):
+                fast_validator.run_api()
+            else:
+                fast_validator.run_recursive()
+        if fast_validator._checked_count:
+            sys.stderr.write("\r" + " " * 60 + "\r")
+            sys.stderr.flush()
         self.fast_total_time = (time.perf_counter() - start_time) * 1000
 
         results = [
