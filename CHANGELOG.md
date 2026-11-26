@@ -6,9 +6,16 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ## Unreleased
 
+## [v1.15.1] - 2026-11-26
+
 ### Fixed
 
 - Fixed `--recursive` (non-fast) understating the assets checked when the run fails: `validate_all` now keeps every validated object instead of only the failures by enabling `trace_recursion` on `StacValidate` (its per-object JSON output is suppressed unless `--verbose` is passed)
+- Fixed `--recursive` (non-fast) aborting the catalog walk at the first invalid `item` link; all linked objects are now validated and reported
+
+### Updated
+
+- Updated stac-valid dependency to >=4.6.4,<5
 
 ## [v1.15.0] - 2026-11-26
 
@@ -373,7 +380,8 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - Validation from stac-validator 2.3.0
 - Links and assets validation checks
 
-[Unreleased]: https://github.com/stac-utils/stac-check/compare/v1.15.0...main
+[Unreleased]: https://github.com/stac-utils/stac-check/compare/v1.15.1...main
+[v1.15.1]: https://github.com/stac-utils/stac-check/compare/v1.15.0...v1.15.1
 [v1.15.0]: https://github.com/stac-utils/stac-check/compare/v1.14.0...v1.15.0
 [v1.14.0]: https://github.com/stac-utils/stac-check/compare/v1.13.0...v1.14.0
 [v1.13.0]: https://github.com/stac-utils/stac-check/compare/v1.12.0...v1.13.0
