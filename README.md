@@ -19,7 +19,7 @@ The intent of this project is to provide a validation tool that also follows the
 
 ## Latest News
 
-- **11/30/2026:** 🚀 **stac-check 2.0!** The legacy validation engine has been removed — stac-check now validates everything with FastJSONSchema in a single pass, and recursive display no longer re-fetches or re-validates every asset. `--fast` now means "validation only": it skips linting and geometry checks for maximum speed, while `--fast-linting` is deprecated (linting runs by default). `--max-depth` is honored in recursive mode, `--assets`/`--links` checks now work with every mode, and STAC documents older than 1.0.0 are rejected with a clear error instead of a cryptic schema failure. See the [2.0.0 changelog entry](CHANGELOG.md#v200) for the full migration notes.
+- **11/30/2026:** 🚀 **stac-check 2.0!** The legacy validation engine has been removed — stac-check now validates everything with FastJSONSchema in a single pass, and recursive display no longer re-fetches or re-validates every asset. `--fast` now means "validation only": it skips linting and geometry checks for maximum speed, and `--fast-linting` has been removed (linting runs by default). `--max-depth` is honored in recursive mode, `--assets`/`--links` checks now work with every mode, and STAC documents older than 1.0.0 are rejected with a clear error instead of a cryptic schema failure. See the [2.0.0 changelog entry](CHANGELOG.md#v200) for the full migration notes.
 
 <details style="border: 1px solid #eaecef; border-radius: 6px; padding: 10px; margin-bottom: 16px; background-color: #f9f9f9;">
 <summary style="cursor: pointer; font-weight: bold; margin: -10px -10px 0; padding: 10px; background-color: #f0f0f0; border-bottom: 1px solid #eaecef; border-top-left-radius: 6px; border-top-right-radius: 6px;">View Older News (Click to Expand)</summary>
@@ -116,8 +116,6 @@ Options:
   -o, --output FILE        Save output to the specified file.
   --fast                   Skip linting and geometry checks for maximum validation
                            speed. Also applies to --recursive.
-  --fast-linting           Deprecated: linting and geometry checks run by default
-                           (no-op).
   --item-collection        Validate item collection response. Can be combined with
                            --pages. Defaults to one page.
   --collections            Validate collections endpoint response. Can be combined with
@@ -490,7 +488,7 @@ Schemas checked:
 
 `--fast` also applies to `--recursive`, skipping the per-object linting and geometry checks across the whole catalog walk (see [Recursive Validation](#recursive-validation)).
 
-The deprecated `--fast-linting` flag is a no-op: linting and geometry checks already run by default.
+The `--fast-linting` flag was removed in 2.0.0: linting and geometry checks already run by default.
 
 Use `--fast` when:
 - Validating large collections (100+ items)

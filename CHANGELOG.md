@@ -12,7 +12,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 - **Single validation engine**: the legacy `StacValidate` (jsonschema) engine has been removed; all validation now runs through `FastValidator` (fastjsonschema) from stac-valid. `validation_method`/`validator_engine` report `"FastJSONSchema"` and `error_type` reports `"FastValidationError"` instead of `"JSONSchemaValidationError"`
 - `--fast` is redefined as "validation only": it skips linting and geometry checks for maximum speed in every mode
-- `--fast-linting` is deprecated and warns on use; linting and geometry checks now run by default, including per object during `--recursive`
+- Linting and geometry checks now run by default in every mode, including per object during `--recursive`
 - `--max-depth` is now honored in recursive mode (objects at or beyond the limit are not validated); it was previously ignored in fast mode
 - `--pydantic` is now backed by `stac-pydantic` directly via the `stac-check[pydantic]` extra rather than `stac-valid[pydantic]`
 - Recursive display no longer re-fetches and re-validates every asset; per-asset linting runs on the documents already loaded during the walk, removing quadratic remote-fetch behavior on large catalogs
@@ -24,7 +24,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 ### Removed
 
 - Support for STAC versions older than 1.0.0: pre-1.0 documents now fail fast with a clear `UnsupportedVersionError` instead of a cryptic schema fetch error
-- `Linter`'s `fast_linting` parameter and the `stac_check.fast_validator_wrapper` module (`validate_collection_fast` and `extract_schemas` moved to `stac_check.api_lint`)
+- The `--fast-linting` CLI flag and `Linter`'s `fast_linting` parameter (linting is the default; use `--fast` to skip it), along with the `stac_check.fast_validator_wrapper` module (`validate_collection_fast` and `extract_schemas` moved to `stac_check.api_lint`)
 
 ### Fixed
 

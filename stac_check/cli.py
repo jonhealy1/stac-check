@@ -117,11 +117,6 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
     is_flag=True,
     help="Skip linting and geometry checks for maximum validation speed. Also applies to --recursive.",
 )
-@click.option(
-    "--fast-linting",
-    is_flag=True,
-    help="Deprecated: linting and geometry checks run by default (no-op).",
-)
 @click.command()
 @click.argument("file")
 @click.version_option(version=importlib.metadata.distribution("stac-check").version)
@@ -140,7 +135,6 @@ def main(
     verbose: bool,
     output: Optional[str],
     fast: bool,
-    fast_linting: bool,
 ) -> None:
     """Main entry point for the stac-check CLI.
 
@@ -159,16 +153,7 @@ def main(
         verbose: Show verbose output
         output: Save output to file (only with --collections, --item-collection, or --recursive)
         fast: Skip linting and geometry checks for maximum validation speed
-        fast_linting: Deprecated no-op; linting runs by default
     """
-    if fast_linting:
-        click.secho(
-            "Warning: --fast-linting is deprecated and has no effect; "
-            "linting and geometry checks run by default. Use --fast to skip them.",
-            fg="yellow",
-            err=True,
-        )
-
     # Check if output is used without --collections, --item-collection, or --recursive
     if output and not any([collections, item_collection, recursive]):
         click.echo(
