@@ -89,7 +89,7 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
     "--pages",
     "-p",
     type=int,
-    help="Maximum number of pages to validate per paginated list — with --item-collection/--collections/--catalogs (default: one page) or --recursive (default: one page per list; 0 for all pages).",
+    help="Maximum number of pages to validate per paginated list — with --item-collection/--collections/--catalogs or --recursive (default: one page per list; 0 for all pages).",
 )
 @click.option(
     "--recursive",
@@ -218,7 +218,7 @@ def main(
         api_linter = ApiLinter(
             source=file,
             object_list_key=object_list_key,
-            pages=pages if pages else 1,
+            pages=pages if pages is not None else 1,
             headers=dict(header),
             verbose=verbose,
             fast=fast,

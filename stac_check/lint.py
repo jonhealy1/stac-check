@@ -361,7 +361,7 @@ class Linter:
 
         if isinstance(file, str):
             if is_valid_url(file):
-                resp = requests.get(file, headers=self.headers)
+                resp = requests.get(file, headers=self.headers, timeout=30)
                 data = resp.json()
             else:
                 with open(file) as json_file:
@@ -621,6 +621,19 @@ class Linter:
                     if self._follow_pagination:
                         self._normalize_api_links(data)
                         self._merge_next_pages(data, resource_path)
+                    # Index embedded objects under the synthetic
+                    # "{page_url}#{id}" paths upstream gives them — items
+                    # extracted from items pages are never loaded
+                    # individually, so without this they get no
+                    # original_object, linting, or pydantic coverage.
+                    for list_key in ("features", "collections", "catalogs"):
+                        objects = data.get(list_key)
+                        if isinstance(objects, list):
+                            for obj in objects:
+                                if isinstance(obj, dict) and obj.get("id"):
+                                    self.loaded_objects.setdefault(
+                                        f"{original_path}#{obj['id']}", obj
+                                    )
                 return data
 
             def _normalize_api_links(self, data: Dict[str, Any]) -> None:
@@ -775,22 +788,25 @@ class Linter:
             # Remote sources are STAC APIs or hosted catalogs: API mode
             # additionally follows "data"/"items" links (landing pages link
             # to /collections via rel="data" rather than "child"/"item")
-            if file.startswith("http"):
-                fast_validator._follow_pagination = True
-                # Default: first page of each paginated list; --pages N
-                # overrides, --pages 0 consumes every page
-                fast_validator._page_cap = (
-                    None
-                    if self.pages == 0
-                    else (self.pages if self.pages is not None else 1)
-                )
-                fast_validator.run_api()
-            else:
-                fast_validator.run_recursive()
+            try:
+                if file.startswith("http"):
+                    fast_validator._follow_pagination = True
+                    # Default: first page of each paginated list; --pages N
+                    # overrides, --pages 0 consumes every page
+                    fast_validator._page_cap = (
+                        None
+                        if self.pages == 0
+                        else (self.pages if self.pages is not None else 1)
+                    )
+                    fast_validator.run_api()
+                else:
+                    fast_validator.run_recursive()
+            finally:
+                # Clear the stderr progress line even if the walk raised
+                if fast_validator._checked_count:
+                    sys.stderr.write("\r" + " " * 80 + "\r")
+                    sys.stderr.flush()
         self.truncated_lists = list(fast_validator._truncated_lists)
-        if fast_validator._checked_count:
-            sys.stderr.write("\r" + " " * 80 + "\r")
-            sys.stderr.flush()
         self.fast_total_time = (time.perf_counter() - start_time) * 1000
 
         results = [

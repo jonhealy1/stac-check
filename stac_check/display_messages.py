@@ -209,7 +209,7 @@ def _display_fast_validation_summary(
                 error_registry[error_msg] = []
             # Extract item ID from path
             path = result.get("path", "unknown")
-            item_id = path.split("/")[-1] if "/" in path else path
+            item_id = path.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
             error_registry[error_msg].append(item_id)
 
         # Collect best practices issues (filter out empty/base messages)
@@ -286,7 +286,7 @@ def _display_fast_validation_summary(
         practices_registry: Dict[str, List[str]] = {}
         for path, messages in best_practices_issues:
             # Extract item ID from path
-            item_id = path.split("/")[-1] if "/" in path else path
+            item_id = path.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
             for msg in messages:
                 # Normalize messages that contain item IDs to group them together
                 # e.g., "Item name 'S2B_1CCV_20200317_0_L2A' should only contain..."
@@ -323,7 +323,7 @@ def _display_fast_validation_summary(
 
         geometry_registry: Dict[str, List[str]] = {}
         for path, messages in geometry_issues:
-            item_id = path.split("/")[-1] if "/" in path else path
+            item_id = path.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
             for msg in messages:
                 normalized_msg = re.sub(r"(?<![a-zA-Z])'[^']+'", "'<id>'", msg.strip())
                 if normalized_msg not in geometry_registry:
@@ -380,7 +380,7 @@ def _display_validation_summary(
             if error_msg not in error_registry:
                 error_registry[error_msg] = []
             # Extract item ID from path
-            item_id = path.split("/")[-1] if "/" in path else path
+            item_id = path.rsplit("#", 1)[-1].rsplit("/", 1)[-1]
             error_registry[error_msg].append(item_id)
 
         # Check for best practice warnings in the result

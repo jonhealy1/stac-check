@@ -68,13 +68,18 @@ def _paginated_api_payloads():
     """A two-page /collections and per-collection paginated /items API."""
     base = "https://api.test/stac"
 
-    def collection(cid, item_pages):
+    def collection(cid, items_href=None):
         return {
             "type": "Collection",
             "id": cid,
             "stac_version": "1.0.0",
             "description": cid,
-            "links": [{"rel": "items", "href": f"{base}/collections/{cid}/items"}],
+            "links": [
+                {
+                    "rel": "items",
+                    "href": items_href or f"{base}/collections/{cid}/items",
+                }
+            ],
         }
 
     def items_page(cid, ids, next_href=None):
@@ -148,7 +153,9 @@ def _paginated_api_payloads():
             "collections": [collection("c5", None)],
             "links": [],
         },
-        f"{base}/catalogs/cat1/collections/c5": collection("c5", None),
+        f"{base}/catalogs/cat1/collections/c5": collection(
+            "c5", f"{base}/catalogs/cat1/collections/c5/items"
+        ),
         f"{base}/catalogs/cat1/collections/c5/items": items_page("c5", ["i5"]),
     }
 
@@ -199,6 +206,14 @@ def test_recursive_remote_follows_next_pages(monkeypatch):
     # catalogs-extension objects are reached and typed as catalogs
     types = [m.get("asset_type") for m in linter.validate_all]
     assert types.count("CATALOG") == 2  # root + cat1
+    assert types.count("ITEM") == 5
+    # every object validated — no "Failed to load" placeholders
+    assert all(m.get("asset_type") for m in linter.validate_all)
+    # items extracted from items pages keep their docs for
+    # linting/pydantic reuse via loaded_objects
+    item_msgs = [m for m in linter.validate_all if m.get("asset_type") == "ITEM"]
+    assert all(m.get("original_object") for m in item_msgs)
+    assert any(m["path"].endswith("#i5") for m in item_msgs)
 
 
 def test_linter_recursive_output_suppressed(capsys):

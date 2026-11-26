@@ -170,7 +170,7 @@ class ApiLinter:
     Attributes:
         source (str): The source URL or file path.
         object_list_key (str): The key for the list of objects in the response.
-        pages (int): Maximum number of pages to process.
+        pages (int): Maximum number of pages to process (0 follows every page).
         headers (Dict): HTTP headers for requests.
         version (Optional[str]): STAC version detected from validated objects.
         validator_version (str): Version of stac-validator being used.
@@ -267,7 +267,10 @@ class ApiLinter:
         while stac_file:
             response = self._fetch_and_parse(stac_file)
             objects = response.get(self.object_list_key)
-            if not isinstance(objects, list):
+            # Only list responses paginate — a bare STAC object with a
+            # rel="next" link (e.g. item navigation) is not a page of results
+            is_list_response = isinstance(objects, list)
+            if not is_list_response:
                 objects = []
                 for alt in ("features", "collections", "catalogs"):
                     if alt != self.object_list_key and isinstance(
@@ -296,7 +299,13 @@ class ApiLinter:
                     next_link = link.get("href")
                     break
             # Check if we should continue to the next page
-            if next_link and next_link != stac_file and page < self.pages:
+            # (pages <= 0 means follow every page)
+            if (
+                next_link
+                and next_link != stac_file
+                and is_list_response
+                and (self.pages <= 0 or page < self.pages)
+            ):
                 stac_file = next_link
                 page += 1
             else:

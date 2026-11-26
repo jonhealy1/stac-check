@@ -117,9 +117,9 @@ Options:
   --catalogs               Validate catalogs endpoint response (STAC API catalogs
                            extension). Can be combined with --pages. Defaults to one page.
   -p, --pages INTEGER      Maximum number of pages to validate per paginated list,
-                           via --item-collection/--collections/--catalogs (default:
-                           one page) or --recursive (default: one page per
-                           list; 0 for all pages).
+                           via --item-collection/--collections/--catalogs or
+                           --recursive (default: one page per list; 0 for all
+                           pages).
   --help                   Show this message and exit.
 ```
 
