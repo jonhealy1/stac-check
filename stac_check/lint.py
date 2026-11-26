@@ -240,9 +240,6 @@ class Linter:
         # Set error and info fields
         self.error_type = self.get_message_field("error_type")
         self.error_msg = self.get_message_field("error_message")
-        self.failed_schema = self.get_message_field("failed_schema")
-        self.recommendation = self.get_message_field("recommendation")
-        self.verbose_error_msg = self.get_message_field("error_verbose")
         # Link/asset href checks are engine-independent; run them here and
         # attach the same *_validated structure StacValidate produced so
         # display code stays unchanged.
@@ -623,25 +620,27 @@ class Linter:
                     continue
                 mapped.update(self._pydantic_validate(obj, path=mapped["path"]))
 
-        # Run linting and geometry checks per object using the
-        # already-loaded documents, without re-fetching or re-validating,
-        # unless --fast skips them.
-        if not self.fast:
-            for raw_result, mapped in zip(fast_validator.message, results):
-                obj = fast_validator.loaded_objects.get(raw_result.get("path", ""))
-                if not isinstance(obj, dict):
-                    continue
-                try:
-                    lint = Linter(
-                        obj,
-                        config_file=self.config_file,
-                        headers=self.headers,
-                        prevalidated=True,
-                    )
-                    mapped["best_practices"] = lint.best_practices_msg
-                    mapped["geometry_errors"] = lint.geometry_errors_msg
-                except Exception:
-                    continue
+        # Attach the already-loaded documents so display can build lint-only
+        # Linters without re-fetching, and run linting and geometry checks
+        # per object without re-validating, unless --fast skips them.
+        for raw_result, mapped in zip(fast_validator.message, results):
+            obj = fast_validator.loaded_objects.get(raw_result.get("path", ""))
+            if not isinstance(obj, dict):
+                continue
+            mapped["original_object"] = obj
+            if self.fast:
+                continue
+            try:
+                lint = Linter(
+                    obj,
+                    config_file=self.config_file,
+                    headers=self.headers,
+                    prevalidated=True,
+                )
+                mapped["best_practices"] = lint.best_practices_msg
+                mapped["geometry_errors"] = lint.geometry_errors_msg
+            except Exception:
+                continue
 
         # run_recursive() returns early with an empty message list when the
         # root document cannot be loaded; surface that as a failed result

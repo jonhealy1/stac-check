@@ -6,7 +6,6 @@ import click
 from stac_check.api_lint import ApiLinter
 from stac_check.lint import Linter
 from stac_check.logo import logo
-from stac_check.utilities import format_verbose_error
 
 __all__ = [
     "cli_message",
@@ -68,29 +67,6 @@ def _display_schemas(linter: Linter) -> None:
         for schema in linter.schema:
             click.secho(f"    {schema}")
     click.secho()
-
-
-def _display_failed_schema(linter: Linter) -> None:
-    """Display failed schema information if any.
-
-    Args:
-        linter: The Linter object containing schema information
-    """
-    if linter.failed_schema:
-        click.secho("Failed Schema: ", fg="blue")
-        click.secho(f"    {linter.failed_schema}")
-        click.secho()
-
-
-def _display_recommendation(linter: Linter) -> None:
-    """Display recommendations if any.
-
-    Args:
-        linter: The Linter object containing recommendation information
-    """
-    if linter.recommendation:
-        click.secho("Recommendation: ", fg="blue")
-        click.secho(f"    {linter.recommendation}")
 
 
 def _display_best_practices(linter: Linter) -> None:
@@ -178,23 +154,6 @@ def _display_errors(linter: Linter) -> None:
     if linter.error_msg:
         click.secho("Validation error message: ", fg="red")
         click.secho(f"    {linter.error_msg}")
-
-
-def _display_verbose_output(linter: Linter) -> None:
-    """Display verbose error output if available.
-
-    Args:
-        linter: The Linter object containing verbose error information
-    """
-    if linter.verbose_error_msg:
-        click.secho("\n Verbose Validation Output: ", fg="white", bg="cyan")
-        click.secho()
-        if isinstance(linter.verbose_error_msg, dict):
-            formatted_error = format_verbose_error(linter.verbose_error_msg)
-        else:
-            formatted_error = str(linter.verbose_error_msg)
-        click.secho(formatted_error)
-        click.secho()
 
 
 def _display_additional_info(linter: Linter) -> None:
@@ -663,11 +622,13 @@ def item_collection_message(
 
     # Define a function to create Linter instances from API results
     def create_api_linter(msg):
+        # In fast mode the validation result is displayed directly;
+        # otherwise a lint-only Linter gives rich per-asset display
+        # without re-validating.
+        if linter.fast:
+            return None
         if msg.get("original_object"):
-            return Linter(
-                msg.get("original_object"),
-                fast=linter.fast,
-            )
+            return Linter(msg.get("original_object"), prevalidated=True)
         raise ValueError("No original object available")
 
     # Display the results using the shared helper
@@ -777,11 +738,13 @@ def collections_message(
 
     # Define a function to create Linter instances from API results
     def create_collection_linter(msg):
+        # In fast mode the validation result is displayed directly;
+        # otherwise a lint-only Linter gives rich per-asset display
+        # without re-validating.
+        if linter.fast:
+            return None
         if msg.get("original_object"):
-            return Linter(
-                msg.get("original_object"),
-                fast=linter.fast,
-            )
+            return Linter(msg.get("original_object"), prevalidated=True)
         raise ValueError("No original object available")
 
     # Display the results using the shared helper
@@ -821,14 +784,22 @@ def recursive_message(
         None.
     """
 
-    # Define a function to create Linter instances from recursive results
+    # Define a function to create Linter instances from recursive results.
+    # The mapped results carry the already-loaded documents, so a
+    # lint-only Linter gives rich per-asset display without re-fetching
+    # or re-validating. In fast mode the mapped result is shown directly.
     def create_recursive_linter(msg):
-        # In fast mode objects were already validated during the recursive
-        # walk; re-creating a Linter would re-fetch and re-validate every
-        # asset, so display the mapped result directly instead.
         if linter.fast:
             return None
-        return Linter(msg["path"], recursive=True)
+        obj = msg.get("original_object")
+        if not isinstance(obj, dict):
+            return None
+        return Linter(
+            obj,
+            config_file=linter.config_file,
+            headers=linter.headers,
+            prevalidated=True,
+        )
 
     # Display the results using the shared helper
     _display_validation_results(
@@ -858,14 +829,11 @@ def cli_message(linter: Linter) -> None:
     """
     _display_validation_status(linter)
     _display_schemas(linter)
-    _display_failed_schema(linter)
-    _display_recommendation(linter)
     _display_errors(linter)
     _display_best_practices(linter)
     _display_geometry_errors(linter)
     _display_recursive_validation(linter)
     _display_asset_validation(linter)
-    _display_verbose_output(linter)
     _display_additional_info(linter)
     _display_disclaimer()
 
@@ -904,12 +872,10 @@ def intro_message(linter: Linter) -> None:
     )
 
     # Always show validation method
-    if hasattr(linter, "fast") and linter.fast:
-        validation_method = "FastJSONSchema"
-    elif hasattr(linter, "pydantic") and linter.pydantic:
+    if hasattr(linter, "pydantic") and linter.pydantic:
         validation_method = "Pydantic"
     else:
-        validation_method = "JSONSchema"
+        validation_method = "FastJSONSchema"
 
     click.secho(f"\n Validation method: {validation_method}", bg="cyan", fg="white")
 

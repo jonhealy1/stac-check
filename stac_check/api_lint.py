@@ -217,9 +217,6 @@ class ApiLinter:
                     "geometry_errors": [],
                     "version": None,
                     "schema": [],
-                    "recommendation": None,
-                    "error_verbose": None,
-                    "failed_schema": None,
                     "original_object": obj,  # Still include the original object even if validation failed
                 }
 
