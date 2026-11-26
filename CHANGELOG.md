@@ -6,6 +6,8 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ## Unreleased
 
+## [v1.15.0] - 2026-11-26
+
 ### Fixed
 
 - Fixed fast mode (`--fast`) reporting objects as valid without validating them when linting dictionaries, e.g. `--fast` combined with `--collections` or `--item-collection` on remote endpoints
@@ -362,7 +364,8 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - Validation from stac-validator 2.3.0
 - Links and assets validation checks
 
-[Unreleased]: https://github.com/stac-utils/stac-check/compare/v1.14.0...main
+[Unreleased]: https://github.com/stac-utils/stac-check/compare/v1.15.0...main
+[v1.15.0]: https://github.com/stac-utils/stac-check/compare/v1.14.0...v1.15.0
 [v1.14.0]: https://github.com/stac-utils/stac-check/compare/v1.13.0...v1.14.0
 [v1.13.0]: https://github.com/stac-utils/stac-check/compare/v1.12.0...v1.13.0
 [v1.12.0]: https://github.com/stac-utils/stac-check/compare/v1.11.1...v1.12.0
