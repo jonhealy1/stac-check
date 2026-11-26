@@ -16,6 +16,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - Fixed `--recursive --fast` on remote catalogs: worked around upstream FastValidator bugs that mangled `https://` child URLs via `os.path.normpath` and rejected pre-1.0 documents lacking a `type` field
 - Fixed `--fast` reporting an empty STAC version for file/URL inputs, always prompting to upgrade to version 1.1.0
 - Fixed percent-encoded identifier check flagging non-Item objects whose ids contain `:`
+- Fixed `--recursive` exiting 0 when only child objects fail validation; the exit code now reflects all validated objects
 
 ### Changed
 

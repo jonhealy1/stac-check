@@ -17,8 +17,21 @@
 
 The intent of this project is to provide a validation tool that also follows the official [STAC Best Practices document](https://github.com/radiantearth/stac-spec/blob/master/best-practices.md)
 
+## Latest News
+
+- **11/26/2026:** ⚡ **Fast Recursive Validation!** `--fast` now works with `--recursive`, validating an entire catalog and all of its linked objects with FastJSONSchema in a single pass instead of re-fetching and re-validating every asset during display. In our benchmarks it validated a local catalog of 61 objects **~45× faster** than standard recursion (0.01s vs 0.46s validation time, ~17× end-to-end) and a remote catalog end-to-end **~6× faster** (3.1s vs 18.6s) — and the gap widens sharply on large or deeply nested remote catalogs, where standard recursion's per-asset re-walks push runtimes into the minutes while `--fast` finishes in seconds. Custom `--headers` are applied to remote fetches, and results are shown in the compact summary with errors grouped across the whole walk. Note that `--max-depth` is ignored in fast mode. See [Recursive Validation](#recursive-validation) and [Fast Validation](#fast-validation).
+
+<details style="border: 1px solid #eaecef; border-radius: 6px; padding: 10px; margin-bottom: 16px; background-color: #f9f9f9;">
+<summary style="cursor: pointer; font-weight: bold; margin: -10px -10px 0; padding: 10px; background-color: #f0f0f0; border-bottom: 1px solid #eaecef; border-top-left-radius: 6px; border-top-right-radius: 6px;">View Older News (Click to Expand)</summary>
+
+-------------
+<!-- Add older news items here in Markdown format; GitHub will parse them thanks to the blank line implicit in this structure -->
+
+</details>
+
 ## Table of Contents
 
+- [Latest News](#latest-news)
 - [Documentation](#documentation)
 - [Installation](#installation)
   - [Pip](#pip)

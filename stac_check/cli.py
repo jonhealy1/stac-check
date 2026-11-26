@@ -295,4 +295,9 @@ def main(
         # Handle output (without duplicating the intro message)
         handle_output(output if recursive else None, generate_output)
 
-        sys.exit(0 if linter.valid_stac else 1)
+        valid = linter.valid_stac
+        if recursive:
+            valid = valid and all(
+                msg.get("valid_stac") is True for msg in linter.validate_all
+            )
+        sys.exit(0 if valid else 1)

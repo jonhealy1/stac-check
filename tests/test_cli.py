@@ -44,13 +44,25 @@ def test_cli_validate_local_file(runner):
 
 
 def test_cli_validate_recursive(runner):
-    """Test recursive validation."""
+    """Recursive validation exits non-zero when a child object fails."""
     test_dir = os.path.join(
         os.path.dirname(__file__), "../sample_files/1.0.0/catalog-with-bad-item.json"
     )
     result = runner.invoke(cli_main, [test_dir, "--recursive"])
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "Assets Checked" in result.output
+
+
+def test_cli_validate_recursive_fast(runner):
+    """--recursive --fast detects, displays, and fails on child errors."""
+    test_dir = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/catalog-with-bad-item.json"
+    )
+    result = runner.invoke(cli_main, [test_dir, "--recursive", "--fast"])
+    assert result.exit_code == 1
+    assert "Validation method: FastJSONSchema" in result.output
+    assert "Failed: 1/3" in result.output
+    assert "must contain" in result.output
 
 
 def test_cli_output_to_file(runner):
