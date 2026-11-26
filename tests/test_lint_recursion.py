@@ -11,8 +11,8 @@ def test_linter_collection_recursive():
     linter = Linter(file, assets=False, links=False, recursive=True)
     assert linter.version == "1.0.0"
     assert linter.recursive == True
-    msg = linter.validate_all[0]
-    assert msg["valid_stac"] is False
+    assert linter.validate_all[0]["valid_stac"] is True  # root catalog
+    msg = next(m for m in linter.validate_all if not m["valid_stac"])
     assert msg["error_type"] == "JSONSchemaValidationError"
     # Accept either 'message' or 'error_message' as the error string
     error_msg = msg.get("error_message") or msg.get("message", "")

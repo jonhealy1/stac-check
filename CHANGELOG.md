@@ -6,6 +6,10 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ## Unreleased
 
+### Fixed
+
+- Fixed `--recursive` (non-fast) understating the assets checked when the run fails: `validate_all` now keeps every validated object instead of only the failures by enabling `trace_recursion` on `StacValidate` (its per-object JSON output is suppressed unless `--verbose` is passed)
+
 ## [v1.15.0] - 2026-11-26
 
 ### Fixed
