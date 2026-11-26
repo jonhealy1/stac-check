@@ -2,6 +2,7 @@ import importlib.metadata
 import importlib.resources
 import json
 import os
+import re
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -503,6 +504,28 @@ class Linter:
 
         from stac_validator.fast_validator import FastValidator
 
+        class _RecursiveFastValidator(FastValidator):
+            """FastValidator with workarounds for upstream recursive-mode bugs.
+
+            - ``_validate_recursive`` resolves relative child hrefs with
+              ``os.path.normpath``, which collapses ``https://`` to ``https:/``
+              for URL bases and breaks loading of remote children.
+            - ``_validate_recursive`` requires a ``type`` field, but STAC
+              documents older than 1.0.0 do not have one.
+            """
+
+            def _load_json_resource(self, resource_path: str) -> Dict[str, Any]:
+                if re.match(r"^https?:/[^/]", resource_path):
+                    resource_path = resource_path.replace(":/", "://", 1)
+                data = super()._load_json_resource(resource_path)
+                if isinstance(data, dict) and "type" not in data:
+                    data["type"] = (
+                        "Collection"
+                        if "extent" in data or "license" in data
+                        else "Catalog"
+                    )
+                return data
+
         if self.max_depth is not None:
             warnings.warn(
                 "--max-depth is not supported in fast mode; the full catalog "
@@ -513,7 +536,7 @@ class Linter:
 
         start_time = time.perf_counter()
         with self._fast_validator_context():
-            fast_validator = FastValidator(file, quiet=False)
+            fast_validator = _RecursiveFastValidator(file, quiet=False)
             fast_validator.run_recursive()
         self.fast_total_time = (time.perf_counter() - start_time) * 1000
 
@@ -556,7 +579,9 @@ class Linter:
         valid = result.get("valid_stac", False)
         return {
             "version": stac_version,
-            "path": result.get("path", ""),
+            # os.path.normpath in FastValidator collapses "https://" to
+            # "https:/" in resolved child paths; restore it for display.
+            "path": re.sub(r"^(https?):/([^/])", r"\1://\2", result.get("path", "")),
             "id": result.get("id", ""),
             "schema": schema,
             "asset_type": (

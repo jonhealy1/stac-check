@@ -84,6 +84,58 @@ def test_linter_recursive_fast_dict_warns():
     assert isinstance(linter.validate_all, list)
 
 
+def test_linter_recursive_fast_remote(monkeypatch):
+    """Relative child hrefs on remote catalogs resolve to valid https://
+    URLs, and pre-1.0 documents without a 'type' field are detected."""
+    import requests_mock
+    from stac_validator import fast_validator as fv
+
+    # Pre-1.0 style documents: no "type" field on catalog/collection
+    catalog = {
+        "id": "root",
+        "stac_version": "0.7.0",
+        "description": "root catalog",
+        "links": [{"rel": "child", "href": "./collection.json"}],
+    }
+    collection = {
+        "id": "col",
+        "stac_version": "0.7.0",
+        "description": "collection",
+        "license": "proprietary",
+        "links": [{"rel": "item", "href": "./item.json"}],
+    }
+    item = {
+        "type": "Feature",
+        "stac_version": "0.7.0",
+        "id": "i1",
+        "geometry": None,
+        "properties": {"datetime": "2020-01-01T00:00:00Z"},
+        "links": [],
+        "assets": {},
+    }
+
+    # Skip schema fetching/validation entirely; this test covers child URL
+    # resolution and loading, not schema results.
+    monkeypatch.setattr(fv, "get_validator", lambda *a, **k: (lambda data: None, None))
+    with requests_mock.Mocker() as m:
+        m.get("https://example.com/stac/catalog.json", json=catalog)
+        m.get("https://example.com/stac/collection.json", json=collection)
+        m.get("https://example.com/stac/item.json", json=item)
+        linter = Linter(
+            "https://example.com/stac/catalog.json", recursive=True, fast=True
+        )
+
+    assert len(linter.validate_all) == 3
+    for msg in linter.validate_all:
+        assert msg["path"].startswith("https://example.com/")
+        assert msg["valid_stac"] is True
+    assert {m["asset_type"] for m in linter.validate_all} == {
+        "CATALOG",
+        "COLLECTION",
+        "ITEM",
+    }
+
+
 def test_linter_recursive_fast_headers(monkeypatch):
     """Custom headers are applied to FastValidator's HTTP session and
     restored afterwards."""
