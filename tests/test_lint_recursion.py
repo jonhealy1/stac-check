@@ -200,7 +200,7 @@ def test_linter_recursive_fast_headers(monkeypatch):
 def test_validate_collection_fast_forwards_headers():
     """Custom headers are forwarded to the linter instances used by
     --collections/--item-collection --fast."""
-    from stac_check.fast_validator_wrapper import validate_collection_fast
+    from stac_check.api_lint import validate_collection_fast
 
     seen = []
 
