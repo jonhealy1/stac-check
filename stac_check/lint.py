@@ -1,10 +1,11 @@
 import importlib.metadata
 import importlib.resources
+import io
 import json
 import os
 import re
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext, redirect_stdout
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -484,21 +485,31 @@ class Linter:
                 stac = StacValidate(
                     file,
                     recursive=True,
+                    # Keep every validated object in stac.message even when
+                    # the run fails; otherwise run() drops valid results and
+                    # validate_all undercounts the assets checked.
+                    trace_recursion=True,
                     max_depth=self.max_depth,
                     assets_open_urls=self.assets_open_urls,
                     headers=self.headers,
                     pydantic=self.pydantic,
                 )
-                stac.run()
             else:
                 stac = StacValidate(
                     recursive=True,
+                    trace_recursion=True,
                     max_depth=self.max_depth,
                     assets_open_urls=self.assets_open_urls,
                     headers=self.headers,
                     pydantic=self.pydantic,
                 )
-                stac.validate_dict(file)
+            # trace_recursion dumps every validated message as JSON to
+            # stdout; keep the terminal clean unless --verbose was passed.
+            with nullcontext() if self.verbose else redirect_stdout(io.StringIO()):
+                if isinstance(file, str):
+                    stac.run()
+                else:
+                    stac.validate_dict(file)
             return stac.message
         else:
             return "Recursive validation is disabled."
