@@ -92,8 +92,9 @@ Options:
   -a, --assets             Validate assets for format and response.
   -m, --max-depth INTEGER  Maximum depth to traverse when recursing. Omit this
                            argument to get full recursion. Ignored if
-                           `recursive == False`.
-  -r, --recursive          Recursively validate all related stac objects.
+                           `recursive == False` or in fast mode.
+  -r, --recursive          Recursively validate all related stac objects. Can be
+                           combined with --fast for FastJSONSchema validation.
   --no-assets-urls         Disables the opening of href links when validating assets
                            (enabled by default).
   --header KEY VALUE       HTTP header to include in the requests. Can be used
@@ -103,6 +104,7 @@ Options:
   -o, --output FILE        Save output to the specified file.
   --fast                   Use FastJSONSchema for high-speed validation. Skips geometry
                            checks and best practices linting for maximum performance.
+                           Also applies to --recursive.
   --fast-linting           Use FastJSONSchema for high-speed validation with best
                            practices linting. Skips geometry checks for maximum performance.
   --item-collection        Validate item collection response. Can be combined with

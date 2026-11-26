@@ -70,13 +70,13 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
     "--recursive",
     "-r",
     is_flag=True,
-    help="Recursively validate all related stac objects.",
+    help="Recursively validate all related stac objects. Can be combined with --fast for FastJSONSchema validation.",
 )
 @click.option(
     "--max-depth",
     "-m",
     type=int,
-    help="Maximum depth to traverse when recursing. Omit this argument to get full recursion. Ignored if `recursive == False`.",
+    help="Maximum depth to traverse when recursing. Omit this argument to get full recursion. Ignored if `recursive == False` or in fast mode.",
 )
 @click.option(
     "-a", "--assets", is_flag=True, help="Validate assets for format and response."
@@ -115,7 +115,7 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
 @click.option(
     "--fast",
     is_flag=True,
-    help="Use FastJSONSchema for high-speed validation. Skips geometry checks and linting for maximum performance.",
+    help="Use FastJSONSchema for high-speed validation. Skips geometry checks and linting for maximum performance. Also applies to --recursive.",
 )
 @click.option(
     "--fast-linting",
