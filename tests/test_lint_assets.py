@@ -20,8 +20,17 @@ def _fake_urlopen(request, *args, **kwargs):
     raise OSError(f"Simulated network failure for {url}")
 
 
+def _fake_get(url, headers=None, *args, **kwargs):
+    """Simulate stac_check's native href checks: succeed for reachable
+    hosts, fail otherwise."""
+    if "storage.googleapis.com" in url:
+        return 200
+    raise OSError(f"Simulated network failure for {url}")
+
+
+@mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
 @mock.patch("stac_validator.utilities.urlopen", side_effect=_fake_urlopen)
-def test_lint_assets_no_links(mock_urlopen):
+def test_lint_assets_no_links(mock_urlopen, mock_get):
     file = "sample_files/1.0.0/core-item.json"
     linter = Linter(file, assets=True, assets_open_urls=False)
     assert linter.message == {
@@ -49,8 +58,9 @@ def test_lint_assets_no_links(mock_urlopen):
     }
 
 
+@mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
 @mock.patch("stac_validator.utilities.urlopen", side_effect=_fake_urlopen)
-def test_linter_bad_assets(mock_urlopen):
+def test_linter_bad_assets(mock_urlopen, mock_get):
     file = "sample_files/1.0.0/core-item-bad-links.json"
     linter = Linter(file, assets=True)
     asset_format_errors = [
@@ -68,13 +78,16 @@ def test_linter_bad_assets(mock_urlopen):
     assert linter.invalid_asset_request == asset_request_errors
 
 
+@mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
 @mock.patch("stac_validator.utilities.urlopen", side_effect=_fake_urlopen)
-def test_linter_bad_links(mock_urlopen):
+def test_linter_bad_links(mock_urlopen, mock_get):
     file = "sample_files/1.0.0/core-item-bad-links.json"
     linter = Linter(file, links=True)
     link_format_errors = ["http:/remotdata.io/catalog/20201211_223832_CS2/index.html"]
+    # Relative link hrefs can't be resolved (the self/alternate link is
+    # malformed) and are filtered out of the http-only display list; the
+    # bogus "http://catalog/..." origin upstream fabricated is gone.
     link_request_errors = [
-        "http://catalog/collection.json",
         "http:/remotdata.io/catalog/20201211_223832_CS2/index.html",
     ]
     assert linter.version == "1.0.0"
@@ -85,8 +98,9 @@ def test_linter_bad_links(mock_urlopen):
     assert linter.invalid_link_request == link_request_errors
 
 
+@mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
 @mock.patch("stac_validator.utilities.urlopen", side_effect=_fake_urlopen)
-def test_linter_bad_links_assets(mock_urlopen):
+def test_linter_bad_links_assets(mock_urlopen, mock_get):
     file = "sample_files/1.0.0/core-item-bad-links.json"
     linter = Linter(file, assets=True, links=True)
     asset_format_errors = [
@@ -101,7 +115,6 @@ def test_linter_bad_links_assets(mock_urlopen):
         "http:/remotdata.io/catalog/20201211_223832_CS2/index.html",
     ]
     link_request_errors = [
-        "http://catalog/collection.json",
         "http:/remotdata.io/catalog/20201211_223832_CS2/index.html",
     ]
     assert linter.version == "1.0.0"
@@ -112,3 +125,20 @@ def test_linter_bad_links_assets(mock_urlopen):
     assert linter.invalid_asset_request == asset_request_errors
     assert linter.invalid_link_format == link_format_errors
     assert linter.invalid_link_request == link_request_errors
+
+
+@mock.patch("stac_check.lint._http_head_status", side_effect=_fake_get)
+def test_linter_bad_links_assets_fast(mock_get):
+    """--fast surfaces invalid assets/links too; the checks are
+    engine-independent and no longer silently skipped."""
+    file = "sample_files/1.0.0/core-item-bad-links.json"
+    linter = Linter(file, assets=True, links=True, fast=True)
+    assert linter.invalid_asset_format == [
+        "https:/storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2.jpg"
+    ]
+    assert linter.invalid_link_format == [
+        "http:/remotdata.io/catalog/20201211_223832_CS2/index.html"
+    ]
+    assert linter.invalid_link_request == [
+        "http:/remotdata.io/catalog/20201211_223832_CS2/index.html"
+    ]

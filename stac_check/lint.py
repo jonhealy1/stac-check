@@ -8,14 +8,28 @@ import time
 from contextlib import contextmanager, nullcontext, redirect_stdout
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
+from urllib.parse import urljoin
 
 import requests
 import yaml
 from dotenv import load_dotenv
-from stac_validator.utilities import is_valid_url
+from stac_validator.utilities import is_url, is_valid_url
 from stac_validator.validate import StacValidate
 
 load_dotenv()
+
+
+def _http_head_status(url: str, headers: Dict) -> int:
+    """Return the HTTP status code for a URL, reading response headers only.
+
+    Uses a streamed GET (rather than HEAD, which some servers and signed
+    URLs reject) and closes before the body downloads.
+    """
+    resp = requests.get(url, headers=headers, timeout=15, stream=True)
+    try:
+        return resp.status_code
+    finally:
+        resp.close()
 
 
 @dataclass
@@ -202,6 +216,13 @@ class Linter:
         self.failed_schema = self.get_message_field("failed_schema")
         self.recommendation = self.get_message_field("recommendation")
         self.verbose_error_msg = self.get_message_field("error_verbose")
+        # Link/asset href checks are engine-independent; run them here and
+        # attach the same *_validated structure StacValidate produced so
+        # display code stays unchanged.
+        if self.links:
+            self.message["links_validated"] = self._validate_hrefs("links")
+        if self.assets:
+            self.message["assets_validated"] = self._validate_hrefs("assets")
         self.invalid_asset_format = (
             self.check_links_assets(10, "assets", "format") if self.assets else None
         )
@@ -687,6 +708,78 @@ class Linter:
                 if num_links == 0:
                     return links
         return links
+
+    def _validate_hrefs(self, url_type: str) -> Dict[str, List[str]]:
+        """Validate link or asset hrefs for format and request validity.
+
+        Produces the same ``{url_type}_validated`` message structure that
+        StacValidate generated so downstream display is unchanged. Requests
+        are streamed (headers only, timeout-bounded) rather than full GETs,
+        and relative link hrefs resolve against the document URL.
+
+        Args:
+            url_type: Either "links" (checked unconditionally against the
+                network) or "assets" (requests skipped when
+                ``assets_open_urls`` is False).
+
+        Returns:
+            A dict with format_valid/format_invalid/request_valid/
+            request_invalid lists of hrefs.
+        """
+        result: Dict[str, List[str]] = {
+            "format_valid": [],
+            "format_invalid": [],
+            "request_valid": [],
+            "request_invalid": [],
+        }
+
+        hrefs: List[str] = []
+        if url_type == "links":
+            entries = self.data.get("links") or []
+            doc_url = (
+                self.item
+                if isinstance(self.item, str) and is_valid_url(self.item)
+                else ""
+            )
+            if not doc_url:
+                for link in entries:
+                    if not isinstance(link, dict):
+                        continue
+                    href = link.get("href")
+                    if link.get("rel") in ("self", "alternate") and is_url(str(href)):
+                        doc_url = href
+                        break
+            for link in entries:
+                href = link.get("href") if isinstance(link, dict) else None
+                if not isinstance(href, str) or not href:
+                    continue
+                if not is_url(href) and doc_url:
+                    href = urljoin(doc_url, href)
+                hrefs.append(href)
+        else:
+            entries = self.data.get("assets") or {}
+            hrefs = [
+                asset["href"]
+                for asset in entries.values()
+                if isinstance(asset, dict) and isinstance(asset.get("href"), str)
+            ]
+
+        open_urls = True if url_type == "links" else self.assets_open_urls
+        for href in hrefs:
+            if not is_url(href):
+                result["format_invalid"].append(href)
+                result["request_invalid"].append(href)
+                continue
+            result["format_valid"].append(href)
+            if open_urls:
+                try:
+                    status = _http_head_status(href, self.headers)
+                    bucket = "request_valid" if status == 200 else "request_invalid"
+                    result[bucket].append(href)
+                except Exception:
+                    result["request_invalid"].append(href)
+
+        return result
 
     def get_message_field(self, field_name: str) -> str:
         """Get a field from the validation message.
