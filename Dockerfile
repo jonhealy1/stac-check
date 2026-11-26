@@ -19,4 +19,4 @@ RUN uv sync --locked --extra dev --extra docs
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["stac_check"]
+CMD ["stac-check"]

@@ -2,7 +2,7 @@
 
 import json
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 def extract_schemas(obj: Dict) -> List[str]:
@@ -37,7 +37,11 @@ def extract_schemas(obj: Dict) -> List[str]:
 
 
 def validate_collection_fast(
-    source: str, linter_class: Any, verbose: bool = False, fast_linting: bool = False
+    source: str,
+    linter_class: Any,
+    verbose: bool = False,
+    fast_linting: bool = False,
+    headers: Optional[Dict] = None,
 ) -> tuple[List[Dict], float, List[str]]:
     """Validate a collection file using FastValidator.
 
@@ -49,6 +53,7 @@ def validate_collection_fast(
         linter_class: The Linter class to use for validation
         verbose: Whether to show verbose output
         fast_linting: Whether to include linting checks in fast mode
+        headers: Optional HTTP headers forwarded to the linter instances
 
     Returns:
         Tuple of (results list, total_time in ms, schemas_checked list)
@@ -66,7 +71,7 @@ def validate_collection_fast(
 
     # Validate the collection file with FastValidator
     # FastValidator now exposes valid_count, invalid_count, and error details
-    linter = linter_class(source, verbose=verbose, fast=True)
+    linter = linter_class(source, verbose=verbose, fast=True, headers=headers or {})
 
     # FastValidator returns message as a list with one dict
     if isinstance(linter.message, list) and len(linter.message) > 0:
@@ -108,6 +113,7 @@ def validate_collection_fast(
                     fast=True,
                     fast_linting=True,
                     prevalidated=True,
+                    headers=headers or {},
                 )
                 best_practices = item_linter.best_practices_msg
                 geometry_errors = item_linter.geometry_errors_msg

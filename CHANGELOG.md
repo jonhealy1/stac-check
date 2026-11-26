@@ -13,7 +13,12 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - Fixed fast mode (`--fast`) reporting objects as valid without validating them when linting dictionaries, e.g. `--fast` combined with `--collections` or `--item-collection` on remote endpoints
 - Fixed tests hanging indefinitely by mocking `urlopen` in asset/link request tests
 - Fixed `--recursive --fast` re-fetching and re-validating every asset while displaying results, negating the speedup on large catalogs
-- Fixed `--headers` being ignored in fast mode; headers are now applied to FastValidator's HTTP session
+- Fixed `--headers` being ignored in fast mode; headers are now applied to FastValidator's HTTP session and forwarded to linter instances in `--collections`/`--item-collection --fast` mode
+- Fixed `--recursive --fast` fetching and validating the root document twice; the recursive result is reused for the root message
+- Fixed `--recursive --fast-linting` silently dropping linting and geometry checks; they now run per object on already-loaded documents
+- Fixed pre-1.0 catalogs carrying a `license` field being misclassified as collections in `--recursive --fast`
+- Fixed crash when displaying best practices in fallback result messages (`click.echo` called with `fg`)
+- Fixed Dockerfile `CMD` pointing to a nonexistent `stac_check` executable (now `stac-check`) and added a `.dockerignore` so `COPY . .` skips `.venv`, `.git`, and build artifacts
 - Fixed `--recursive --fast` showing a misleading empty summary when the root document fails to load
 - Fixed `--recursive --fast` on remote catalogs: worked around upstream FastValidator bugs that mangled `https://` child URLs via `os.path.normpath` and rejected pre-1.0 documents lacking a `type` field
 - Fixed `--fast` reporting an empty STAC version for file/URL inputs, always prompting to upgrade to version 1.1.0

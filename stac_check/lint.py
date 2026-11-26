@@ -168,7 +168,17 @@ class Linter:
                 self.pydantic = False
 
         self.data = self.load_data(self.item)
-        self.message = self.validate_file(self.item)
+        if self.recursive and self.fast and isinstance(self.item, str):
+            # run_recursive() already validates the root document, so reuse
+            # its result instead of fetching and validating it a second time
+            self.validate_all = self.recursive_validation(self.item)
+            root = self.validate_all[0] if self.validate_all else None
+            self.message = (
+                dict(root) if isinstance(root, dict) else self.validate_file(self.item)
+            )
+        else:
+            self.message = self.validate_file(self.item)
+            self.validate_all = self.recursive_validation(self.item)
         self.config = self.parse_config(self.config_file)
 
         from .utilities import determine_asset_type
@@ -184,7 +194,6 @@ class Linter:
         self.valid_stac = self.get_message_field("valid_stac")
 
         self.validator_version = importlib.metadata.distribution("stac-valid").version
-        self.validate_all = self.recursive_validation(self.item)
 
         # Set error and info fields
         self.error_type = self.get_message_field("error_type")
@@ -514,16 +523,32 @@ class Linter:
               documents older than 1.0.0 do not have one.
             """
 
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                super().__init__(*args, **kwargs)
+                # Documents as loaded, keyed by the path FastValidator
+                # records in its results (before URL repair).
+                self.loaded_objects: Dict[str, Dict[str, Any]] = {}
+
             def _load_json_resource(self, resource_path: str) -> Dict[str, Any]:
+                original_path = resource_path
                 if re.match(r"^https?:/[^/]", resource_path):
                     resource_path = resource_path.replace(":/", "://", 1)
                 data = super()._load_json_resource(resource_path)
-                if isinstance(data, dict) and "type" not in data:
-                    data["type"] = (
-                        "Collection"
-                        if "extent" in data or "license" in data
-                        else "Catalog"
-                    )
+                if isinstance(data, dict):
+                    # The root's result path is os.path.abspath'ed by
+                    # run_recursive(); children are keyed by the path as
+                    # passed in. Store both forms for local files.
+                    self.loaded_objects[original_path] = data
+                    if not original_path.startswith("http"):
+                        self.loaded_objects[os.path.abspath(original_path)] = data
+                    if "type" not in data:
+                        # Pre-1.0 documents have no type field. A Collection
+                        # always has 'extent'; a Catalog does not but can
+                        # carry 'license', which is not a usable signal.
+                        if "extent" in data:
+                            data["type"] = "Collection"
+                        elif "id" in data and "description" in data:
+                            data["type"] = "Catalog"
                 return data
 
         if self.max_depth is not None:
@@ -543,6 +568,27 @@ class Linter:
         results = [
             self._map_fast_recursive_result(result) for result in fast_validator.message
         ]
+
+        # --fast-linting: run linting and geometry checks per object using the
+        # already-loaded documents, without re-fetching or re-validating.
+        if self.fast_linting:
+            for raw_result, mapped in zip(fast_validator.message, results):
+                obj = fast_validator.loaded_objects.get(raw_result.get("path", ""))
+                if not isinstance(obj, dict):
+                    continue
+                try:
+                    lint = Linter(
+                        obj,
+                        config_file=self.config_file,
+                        headers=self.headers,
+                        fast=True,
+                        fast_linting=True,
+                        prevalidated=True,
+                    )
+                    mapped["best_practices"] = lint.best_practices_msg
+                    mapped["geometry_errors"] = lint.geometry_errors_msg
+                except Exception:
+                    continue
 
         # run_recursive() returns early with an empty message list when the
         # root document cannot be loaded; surface that as a failed result

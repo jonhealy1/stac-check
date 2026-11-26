@@ -90,11 +90,14 @@ def test_linter_recursive_fast_remote(monkeypatch):
     import requests_mock
     from stac_validator import fast_validator as fv
 
-    # Pre-1.0 style documents: no "type" field on catalog/collection
+    # Pre-1.0 style documents: no "type" field on catalog/collection. The
+    # catalog carries 'license' (allowed pre-1.0) but must not be
+    # misclassified as a Collection; the collection is identified by 'extent'.
     catalog = {
         "id": "root",
         "stac_version": "0.7.0",
         "description": "root catalog",
+        "license": "proprietary",
         "links": [{"rel": "child", "href": "./collection.json"}],
     }
     collection = {
@@ -102,6 +105,7 @@ def test_linter_recursive_fast_remote(monkeypatch):
         "stac_version": "0.7.0",
         "description": "collection",
         "license": "proprietary",
+        "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}},
         "links": [{"rel": "item", "href": "./item.json"}],
     }
     item = {
@@ -163,6 +167,63 @@ def test_linter_recursive_fast_headers(monkeypatch):
     )
     assert seen_headers["Authorization"] == "Bearer token"
     assert "Authorization" not in fv.HTTP_SESSION.headers
+
+
+def test_validate_collection_fast_forwards_headers():
+    """Custom headers are forwarded to the linter instances used by
+    --collections/--item-collection --fast."""
+    from stac_check.fast_validator_wrapper import validate_collection_fast
+
+    seen = []
+
+    class FakeLinter:
+        def __init__(self, item, **kwargs):
+            seen.append(kwargs.get("headers"))
+            self.message = [{"valid_stac": True, "schemas_checked": [], "errors": []}]
+            self.best_practices_msg = []
+            self.geometry_errors_msg = []
+
+    results, _, _ = validate_collection_fast(
+        "sample_files/1.0.0/feature_collection.json",
+        FakeLinter,
+        fast_linting=True,
+        headers={"Authorization": "Bearer token"},
+    )
+    assert results
+    assert seen
+    assert all(h == {"Authorization": "Bearer token"} for h in seen)
+
+
+def test_linter_recursive_fast_linting():
+    """--recursive --fast-linting attaches best practices and geometry
+    errors to each result without re-validating."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True, fast_linting=True)
+    assert len(linter.validate_all) == 3
+    bad = next(m for m in linter.validate_all if not m["valid_stac"])
+    assert any("datetime" in msg for msg in bad["best_practices"])
+    assert any("bbox" in msg for msg in bad["geometry_errors"])
+    catalog = linter.validate_all[0]
+    assert any("title" in msg for msg in catalog["best_practices"])
+
+
+def test_linter_recursive_fast_validates_root_once(monkeypatch):
+    """The root document is validated by run_recursive() only; validate_file
+    is not invoked separately, and the linter message reflects the root."""
+    calls = []
+    original = Linter.validate_file
+
+    def spy(self, file):
+        calls.append(file)
+        return original(self, file)
+
+    monkeypatch.setattr(Linter, "validate_file", spy)
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True)
+    assert calls == []
+    assert linter.valid_stac is True
+    assert linter.version == "1.0.0"
+    assert linter.asset_type == "CATALOG"
 
 
 def test_recursive_message_fast(capsys):
