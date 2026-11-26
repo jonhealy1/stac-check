@@ -1,4 +1,4 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
@@ -19,4 +19,4 @@ RUN uv sync --locked --extra dev --extra docs
 
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["stac_check"]
+CMD ["stac-check"]

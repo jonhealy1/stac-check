@@ -13,6 +13,8 @@ shell:
 .PHONY: docs
 docs:           ## Build documentation locally
 	uv sync --extra docs
+	@uv run sphinx-build --version > /dev/null 2>&1 || \
+		{ echo "Error: sphinx-build not found. The docs extra requires Python >= 3.11."; exit 1; }
 	uv run sphinx-build -b html -E docs/ docs/_build/html
 	@echo "Documentation built in docs/_build/html"
 

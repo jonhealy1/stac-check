@@ -6,15 +6,31 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ## Unreleased
 
+## [v1.15.0] - 2026-11-26
+
 ### Fixed
 
 - Fixed fast mode (`--fast`) reporting objects as valid without validating them when linting dictionaries, e.g. `--fast` combined with `--collections` or `--item-collection` on remote endpoints
 - Fixed tests hanging indefinitely by mocking `urlopen` in asset/link request tests
+- Fixed `--recursive --fast` re-fetching and re-validating every asset while displaying results, negating the speedup on large catalogs
+- Fixed `--headers` being ignored in fast mode; headers are now applied to FastValidator's HTTP session and forwarded to linter instances in `--collections`/`--item-collection --fast` mode
+- Fixed `--recursive --fast` fetching and validating the root document twice; the recursive result is reused for the root message
+- Fixed `--recursive --fast-linting` silently dropping linting and geometry checks; they now run per object on already-loaded documents
+- Fixed pre-1.0 catalogs carrying a `license` field being misclassified as collections in `--recursive --fast`
+- Fixed crash when displaying best practices in fallback result messages (`click.echo` called with `fg`)
+- Fixed Dockerfile `CMD` pointing to a nonexistent `stac_check` executable (now `stac-check`) and added a `.dockerignore` so `COPY . .` skips `.venv`, `.git`, and build artifacts
+- Fixed `--recursive --fast` showing a misleading empty summary when the root document fails to load
+- Fixed `--recursive --fast` on remote catalogs: worked around upstream FastValidator bugs that mangled `https://` child URLs via `os.path.normpath` and rejected pre-1.0 documents lacking a `type` field
+- Fixed `--fast` reporting an empty STAC version for file/URL inputs, always prompting to upgrade to version 1.1.0
+- Fixed percent-encoded identifier check flagging non-Item objects whose ids contain `:`
+- Fixed `--recursive` exiting 0 when only child objects fail validation; the exit code now reflects all validated objects
 
 ### Changed
 
+- `--fast` now applies to `--recursive` validation via FastValidator (`--max-depth` is not supported in fast mode)
 - `--fast-linting` now runs and displays geometry validation checks (previously they were computed but discarded); `--fast` still skips them for maximum performance
 - Switched development workflow, CI, and Docker builds to `uv` with a committed `uv.lock`; the `docs` extra now requires Python >=3.11
+- Docker image is now based on Python 3.12 so the `docs` extra installs, and `make docs` exits with a clear error on Python 3.10
 
 ### Updated
 
@@ -353,7 +369,8 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 - Validation from stac-validator 2.3.0
 - Links and assets validation checks
 
-[Unreleased]: https://github.com/stac-utils/stac-check/compare/v1.14.0...main
+[Unreleased]: https://github.com/stac-utils/stac-check/compare/v1.15.0...main
+[v1.15.0]: https://github.com/stac-utils/stac-check/compare/v1.14.0...v1.15.0
 [v1.14.0]: https://github.com/stac-utils/stac-check/compare/v1.13.0...v1.14.0
 [v1.13.0]: https://github.com/stac-utils/stac-check/compare/v1.12.0...v1.13.0
 [v1.12.0]: https://github.com/stac-utils/stac-check/compare/v1.11.1...v1.12.0

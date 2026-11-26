@@ -166,7 +166,11 @@ class ApiLinter:
         ):
             try:
                 results, total_time, schemas = validate_collection_fast(
-                    self.source, Linter, self.verbose, self.fast_linting
+                    self.source,
+                    Linter,
+                    self.verbose,
+                    self.fast_linting,
+                    headers=self.headers,
                 )
 
                 # Store results and metadata
@@ -185,7 +189,12 @@ class ApiLinter:
         # Regular validation path (non-fast or when FastValidator unavailable)
         for obj, obj_url in self.iterate_objects():
             try:
-                linter = Linter(obj, verbose=self.verbose, fast=self.fast)
+                linter = Linter(
+                    obj,
+                    verbose=self.verbose,
+                    fast=self.fast,
+                    headers=self.headers,
+                )
                 msg = dict(linter.message)
                 msg["path"] = obj_url
                 msg["best_practices"] = linter.best_practices_msg

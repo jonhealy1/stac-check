@@ -701,9 +701,11 @@ def _display_fallback_message(
     status_color = "green" if msg.get("valid_stac") else "red"
     click.secho(f"Valid: {msg.get('valid_stac')}", fg=status_color)
 
-    click.secho("Schemas checked: ", fg="blue")
-    for schema in msg.get("schema", []):
-        click.secho(f"    {schema}")
+    schemas = msg.get("schema", [])
+    if schemas:
+        click.secho("Schemas checked: ", fg="blue")
+        for schema in schemas:
+            click.secho(f"    {schema}")
 
     if not msg.get("valid_stac"):
         if msg.get("error_type"):
@@ -731,7 +733,7 @@ def _display_fallback_message(
         click.secho("\nSTAC Best Practices: ", bg="blue")
         click.echo()
         for practice in bp:
-            click.echo(f"    • {practice}", fg="black")
+            click.secho(f"    • {practice}", fg="black")
         # Update the best_practices in the message for the summary
         msg["best_practices"] = bp
 
@@ -744,8 +746,6 @@ def _display_fallback_message(
         for error in geo:
             if error:  # Skip empty strings
                 click.secho(error, fg="black")
-
-    click.secho("-------------------------")
 
 
 def collections_message(
@@ -825,16 +825,29 @@ def recursive_message(
 
     # Define a function to create Linter instances from recursive results
     def create_recursive_linter(msg):
+        # In fast mode objects were already validated during the recursive
+        # walk; re-creating a Linter would re-fetch and re-validate every
+        # asset, so display the mapped result directly instead.
+        if linter.fast:
+            return None
         return Linter(msg["path"], recursive=True)
 
     # Display the results using the shared helper
     _display_validation_results(
         results=linter.validate_all,
         title="Recursive: Validate all assets in a collection or catalog",
-        metadata={"Max-depth": linter.max_depth},
+        metadata={
+            "Max-depth": (
+                "unlimited"
+                if linter.fast or linter.max_depth is None
+                else linter.max_depth
+            )
+        },
         cli_message_func=cli_message_func,
         create_linter_func=create_recursive_linter,
         verbose=verbose,
+        fast=linter.fast,
+        total_time=getattr(linter, "fast_total_time", 0.0),
     )
 
 

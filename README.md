@@ -17,8 +17,21 @@
 
 The intent of this project is to provide a validation tool that also follows the official [STAC Best Practices document](https://github.com/radiantearth/stac-spec/blob/master/best-practices.md)
 
+## Latest News
+
+- **11/26/2026:** ⚡ **Fast Recursive Validation!** `--fast` now works with `--recursive`, validating an entire catalog and all of its linked objects with FastJSONSchema in a single pass instead of re-fetching and re-validating every asset during display. In our benchmarks it validated a local catalog of 61 objects **~30× faster** than standard recursion (0.08s vs 2.5s validation time, ~19× end-to-end) and a remote catalog end-to-end **~6× faster** (2.9s vs 17.6s) — and the gap widens sharply on large or deeply nested remote catalogs, where standard recursion's per-asset re-walks push runtimes into the minutes while `--fast` finishes in seconds. Custom `--headers` are applied to remote fetches, `--fast-linting` additionally runs linting and geometry checks per object, and results are shown in the compact summary with errors grouped across the whole walk. Note that `--max-depth` is ignored in fast mode. See [Recursive Validation](#recursive-validation) and [Fast Validation](#fast-validation).
+
+<details style="border: 1px solid #eaecef; border-radius: 6px; padding: 10px; margin-bottom: 16px; background-color: #f9f9f9;">
+<summary style="cursor: pointer; font-weight: bold; margin: -10px -10px 0; padding: 10px; background-color: #f0f0f0; border-bottom: 1px solid #eaecef; border-top-left-radius: 6px; border-top-right-radius: 6px;">View Older News (Click to Expand)</summary>
+
+-------------
+<!-- Add older news items here in Markdown format; GitHub will parse them thanks to the blank line implicit in this structure -->
+
+</details>
+
 ## Table of Contents
 
+- [Latest News](#latest-news)
 - [Documentation](#documentation)
 - [Installation](#installation)
   - [Pip](#pip)
@@ -92,8 +105,9 @@ Options:
   -a, --assets             Validate assets for format and response.
   -m, --max-depth INTEGER  Maximum depth to traverse when recursing. Omit this
                            argument to get full recursion. Ignored if
-                           `recursive == False`.
-  -r, --recursive          Recursively validate all related stac objects.
+                           `recursive == False` or in fast mode.
+  -r, --recursive          Recursively validate all related stac objects. Can be
+                           combined with --fast for FastJSONSchema validation.
   --no-assets-urls         Disables the opening of href links when validating assets
                            (enabled by default).
   --header KEY VALUE       HTTP header to include in the requests. Can be used
@@ -103,6 +117,7 @@ Options:
   -o, --output FILE        Save output to the specified file.
   --fast                   Use FastJSONSchema for high-speed validation. Skips geometry
                            checks and best practices linting for maximum performance.
+                           Also applies to --recursive.
   --fast-linting           Use FastJSONSchema for high-speed validation with best
                            practices linting. Skips geometry checks for maximum performance.
   --item-collection        Validate item collection response. Can be combined with
@@ -249,6 +264,14 @@ This object has 4 links
 ```bash
 stac-check https://raw.githubusercontent.com/stac-utils/pystac/main/tests/data-files/examples/0.9.0/collection-spec/examples/landsat-collection.json --recursive
 ```
+
+Combine `--recursive` with `--fast` to validate the entire catalog walk with FastValidator in a single pass — dramatically faster for large or remote catalogs:
+
+```bash
+stac-check catalog.json --recursive --fast
+```
+
+In fast recursive mode, `--max-depth` is ignored (the full catalog is validated) and `--headers` still apply to remote fetches. Use `--fast-linting` instead of `--fast` to also run linting and geometry checks on every object in the walk. Note that FastValidator resolves schemas from schemas.stacspec.org, which does not host pre-1.0 schemas, so documents older than STAC 1.0 may fail schema resolution in fast mode.
 
 <pre><b>stac-check: STAC spec validation and linting tool</b>
 
@@ -441,6 +464,8 @@ For large STAC collections or when you need maximum validation speed, use the `-
 - **`--fast`**: Fastest mode - skips geometry checks and best practices linting, focuses only on STAC spec compliance
 - **`--fast-linting`**: Fast mode with linting - skips geometry checks but includes best practices checks for code quality
 
+Fast validation also works with `--recursive`, validating a catalog and all its linked objects with FastJSONSchema in one pass (see [Recursive Validation](#recursive-validation)).
+
 **Fast Validation (Spec Only) of a Large Item Collection:**
 
 ```bash
@@ -492,6 +517,7 @@ This will show both validation errors and best practices warnings in a compact, 
 
 Use `--fast` when:
 - Validating large collections (100+ items)
+- Recursively validating large or remote catalogs (`--recursive --fast`)
 - You only need STAC spec compliance
 - You want maximum validation speed
 
@@ -574,7 +600,7 @@ This object has 5 collections
 
 Documentation is automatically built and published to GitHub Pages on every push to the `main` branch. You can view the latest version at [stac-utils.github.io/stac-check](https://stac-utils.github.io/stac-check/).
 
-To build the documentation locally (for development or testing), you'll need to install the development dependencies first:
+To build the documentation locally (for development or testing), you'll need Python >= 3.11 and the documentation dependencies:
 
 ```bash
 # Install the package with documentation dependencies

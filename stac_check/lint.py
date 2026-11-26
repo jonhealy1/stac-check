@@ -2,6 +2,9 @@ import importlib.metadata
 import importlib.resources
 import json
 import os
+import re
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -67,7 +70,7 @@ class Linter:
         validate_file(self, file: Union[str, dict]) -> Dict[str, Any]:
             Validates a STAC JSON file and returns a dictionary with the validation message.
 
-        recursive_validation(self, file: Union[str, Dict[str, Any]]) -> str:
+        recursive_validation(self, file: Union[str, Dict[str, Any]]) -> Union[str, List[Dict]]:
             Validates a STAC JSON file recursively and returns a dictionary with the validation message.
 
         set_update_message(self) -> str:
@@ -165,7 +168,17 @@ class Linter:
                 self.pydantic = False
 
         self.data = self.load_data(self.item)
-        self.message = self.validate_file(self.item)
+        if self.recursive and self.fast and isinstance(self.item, str):
+            # run_recursive() already validates the root document, so reuse
+            # its result instead of fetching and validating it a second time
+            self.validate_all = self.recursive_validation(self.item)
+            root = self.validate_all[0] if self.validate_all else None
+            self.message = (
+                dict(root) if isinstance(root, dict) else self.validate_file(self.item)
+            )
+        else:
+            self.message = self.validate_file(self.item)
+            self.validate_all = self.recursive_validation(self.item)
         self.config = self.parse_config(self.config_file)
 
         from .utilities import determine_asset_type
@@ -181,7 +194,6 @@ class Linter:
         self.valid_stac = self.get_message_field("valid_stac")
 
         self.validator_version = importlib.metadata.distribution("stac-valid").version
-        self.validate_all = self.recursive_validation(self.item)
 
         # Set error and info fields
         self.error_type = self.get_message_field("error_type")
@@ -300,6 +312,34 @@ class Linter:
         else:
             return file
 
+    @contextmanager
+    def _fast_validator_context(self):
+        """Suppress FastValidator output and apply custom headers to its session.
+
+        FastValidator fetches remote resources through a module-level
+        requests.Session and does not accept a headers argument, so any
+        user-supplied headers are applied to that session for the duration
+        of the validation run and restored afterwards.
+        """
+        import io
+        import sys
+
+        from stac_validator.fast_validator import HTTP_SESSION
+
+        old_stdout = sys.stdout
+        sys.stdout = io.StringIO()
+        original_headers = None
+        if self.headers:
+            original_headers = dict(HTTP_SESSION.headers)
+            HTTP_SESSION.headers.update(self.headers)
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
+            if original_headers is not None:
+                HTTP_SESSION.headers.clear()
+                HTTP_SESSION.headers.update(original_headers)
+
     def validate_file(self, file: Union[str, dict]) -> Dict[str, Any]:
         """Validates the given file path or STAC dictionary against the validation schema.
 
@@ -330,27 +370,17 @@ class Linter:
         # Use FastValidator for fast mode
         if self.fast:
             try:
-                import io
-                import sys
-
                 from stac_validator.fast_validator import FastValidator
 
-                # Suppress FastValidator output
-                old_stdout = sys.stdout
-                sys.stdout = io.StringIO()
-                try:
+                with self._fast_validator_context():
                     fast_validator = FastValidator(
                         file if isinstance(file, str) else "in-memory",
                         quiet=False,
-                        verbose=self.verbose,
                     )
                     if isinstance(file, dict):
                         fast_validator.run_dict(file)
                     else:
                         fast_validator.run()
-                finally:
-                    # Restore stdout
-                    sys.stdout = old_stdout
 
                 # Use the message attribute directly from FastValidator if available
                 # FastValidator.message is a list with one dict containing all validation info
@@ -376,7 +406,9 @@ class Linter:
                     "valid_stac": fast_validator.valid,
                     "asset_type": "",
                     "version": (
-                        file.get("stac_version", "") if isinstance(file, dict) else ""
+                        self.data.get("stac_version", "")
+                        if isinstance(self.data, dict)
+                        else ""
                     ),
                     "validation_method": "FastJSONSchema",
                     "error_type": (
@@ -416,7 +448,9 @@ class Linter:
 
         return stac.message[0]
 
-    def recursive_validation(self, file: Union[str, Dict[str, Any]]) -> str:
+    def recursive_validation(
+        self, file: Union[str, Dict[str, Any]]
+    ) -> Union[str, List[Dict]]:
         """Recursively validate a STAC item or catalog file and its child items.
 
         Args:
@@ -424,12 +458,28 @@ class Linter:
                 dictionary representing the STAC item or catalog.
 
         Returns:
-            A string containing the validation message.
+            A list of validation result dictionaries when recursive
+            validation is enabled, otherwise a message string.
 
         Raises:
             TypeError: If the input `file` is not a string or a dictionary.
         """
         if self.recursive:
+            if self.fast and isinstance(file, str):
+                try:
+                    return self._fast_recursive_validation(file)
+                except ImportError:
+                    pass
+            if self.fast and not isinstance(file, str):
+                import warnings
+
+                warnings.warn(
+                    "--fast recursive validation is not supported for "
+                    "in-memory dictionaries; falling back to the standard "
+                    "validator.",
+                    UserWarning,
+                    stacklevel=4,
+                )
             if isinstance(file, str):
                 stac = StacValidate(
                     file,
@@ -452,6 +502,142 @@ class Linter:
             return stac.message
         else:
             return "Recursive validation is disabled."
+
+    def _fast_recursive_validation(self, file: str) -> List[Dict]:
+        """Recursively validate a catalog and its children using FastValidator.
+
+        Note: --max-depth is not supported by FastValidator's recursive mode,
+        which uses a fixed internal depth limit.
+        """
+        import warnings
+
+        from stac_validator.fast_validator import FastValidator
+
+        class _RecursiveFastValidator(FastValidator):
+            """FastValidator with workarounds for upstream recursive-mode bugs.
+
+            - ``_validate_recursive`` resolves relative child hrefs with
+              ``os.path.normpath``, which collapses ``https://`` to ``https:/``
+              for URL bases and breaks loading of remote children.
+            - ``_validate_recursive`` requires a ``type`` field, but STAC
+              documents older than 1.0.0 do not have one.
+            """
+
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                super().__init__(*args, **kwargs)
+                # Documents as loaded, keyed by the path FastValidator
+                # records in its results (before URL repair).
+                self.loaded_objects: Dict[str, Dict[str, Any]] = {}
+
+            def _load_json_resource(self, resource_path: str) -> Dict[str, Any]:
+                original_path = resource_path
+                if re.match(r"^https?:/[^/]", resource_path):
+                    resource_path = resource_path.replace(":/", "://", 1)
+                data = super()._load_json_resource(resource_path)
+                if isinstance(data, dict):
+                    # The root's result path is os.path.abspath'ed by
+                    # run_recursive(); children are keyed by the path as
+                    # passed in. Store both forms for local files.
+                    self.loaded_objects[original_path] = data
+                    if not original_path.startswith("http"):
+                        self.loaded_objects[os.path.abspath(original_path)] = data
+                    if "type" not in data:
+                        # Pre-1.0 documents have no type field. A Collection
+                        # always has 'extent'; a Catalog does not but can
+                        # carry 'license', which is not a usable signal.
+                        if "extent" in data:
+                            data["type"] = "Collection"
+                        elif "id" in data and "description" in data:
+                            data["type"] = "Catalog"
+                return data
+
+        if self.max_depth is not None:
+            warnings.warn(
+                "--max-depth is not supported in fast mode; the full catalog "
+                "will be validated.",
+                UserWarning,
+                stacklevel=5,
+            )
+
+        start_time = time.perf_counter()
+        with self._fast_validator_context():
+            fast_validator = _RecursiveFastValidator(file, quiet=False)
+            fast_validator.run_recursive()
+        self.fast_total_time = (time.perf_counter() - start_time) * 1000
+
+        results = [
+            self._map_fast_recursive_result(result) for result in fast_validator.message
+        ]
+
+        # --fast-linting: run linting and geometry checks per object using the
+        # already-loaded documents, without re-fetching or re-validating.
+        if self.fast_linting:
+            for raw_result, mapped in zip(fast_validator.message, results):
+                obj = fast_validator.loaded_objects.get(raw_result.get("path", ""))
+                if not isinstance(obj, dict):
+                    continue
+                try:
+                    lint = Linter(
+                        obj,
+                        config_file=self.config_file,
+                        headers=self.headers,
+                        fast=True,
+                        fast_linting=True,
+                        prevalidated=True,
+                    )
+                    mapped["best_practices"] = lint.best_practices_msg
+                    mapped["geometry_errors"] = lint.geometry_errors_msg
+                except Exception:
+                    continue
+
+        # run_recursive() returns early with an empty message list when the
+        # root document cannot be loaded; surface that as a failed result
+        # instead of an empty summary.
+        if not results and not fast_validator.valid:
+            results.append(
+                {
+                    "version": "",
+                    "path": file,
+                    "schema": [],
+                    "asset_type": "",
+                    "validation_method": "FastJSONSchema",
+                    "valid_stac": False,
+                    "error_type": "FastValidationError",
+                    "error_message": f"Failed to load: {file}",
+                }
+            )
+
+        return results
+
+    @staticmethod
+    def _map_fast_recursive_result(result: Dict) -> Dict:
+        """Map a FastValidator recursive result to the StacValidate message format."""
+        stac_type = result.get("stac_type", "")
+        stac_version = result.get("stac_version", "")
+        schema = (
+            [
+                f"https://schemas.stacspec.org/v{stac_version}/{stac_type}-spec/json-schema/{stac_type}.json"
+            ]
+            if stac_type in ("item", "collection", "catalog")
+            and stac_version not in ("", "unknown")
+            else []
+        )
+        valid = result.get("valid_stac", False)
+        return {
+            "version": stac_version,
+            # os.path.normpath in FastValidator collapses "https://" to
+            # "https:/" in resolved child paths; restore it for display.
+            "path": re.sub(r"^(https?):/([^/])", r"\1://\2", result.get("path", "")),
+            "id": result.get("id", ""),
+            "schema": schema,
+            "asset_type": (
+                stac_type.upper() if stac_type not in ("", "unknown") else ""
+            ),
+            "validation_method": "FastJSONSchema",
+            "valid_stac": valid,
+            "error_type": "" if valid else "FastValidationError",
+            "error_message": result.get("error_message", ""),
+        }
 
     def set_update_message(self) -> str:
         """Returns a message for users to update their STAC version.
@@ -672,8 +858,8 @@ class Linter:
         Returns:
             bool: True if the identifiers are percent-encoded, False otherwise.
         """
-        return (
-            self.asset_type == "ITEM" and "/" in self.object_id or ":" in self.object_id
+        return self.asset_type == "ITEM" and (
+            "/" in self.object_id or ":" in self.object_id
         )
 
     def check_thumbnail(self) -> bool:
