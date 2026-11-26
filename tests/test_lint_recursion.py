@@ -117,23 +117,23 @@ def test_linter_recursive_fast_dict_warns():
 
 def test_linter_recursive_fast_remote(monkeypatch):
     """Relative child hrefs on remote catalogs resolve to valid https://
-    URLs, and pre-1.0 documents without a 'type' field are detected."""
+    URLs, and documents without a 'type' field are detected."""
     import requests_mock
     from stac_validator import fast_validator as fv
 
-    # Pre-1.0 style documents: no "type" field on catalog/collection. The
-    # catalog carries 'license' (allowed pre-1.0) but must not be
-    # misclassified as a Collection; the collection is identified by 'extent'.
+    # STAC Catalogs have no 'type' member at any version; the catalog
+    # carries 'license' but must not be misclassified as a Collection,
+    # which is identified by 'extent'.
     catalog = {
         "id": "root",
-        "stac_version": "0.7.0",
+        "stac_version": "1.0.0",
         "description": "root catalog",
         "license": "proprietary",
         "links": [{"rel": "child", "href": "./collection.json"}],
     }
     collection = {
         "id": "col",
-        "stac_version": "0.7.0",
+        "stac_version": "1.0.0",
         "description": "collection",
         "license": "proprietary",
         "extent": {"spatial": {"bbox": [[-180, -90, 180, 90]]}},
@@ -141,7 +141,7 @@ def test_linter_recursive_fast_remote(monkeypatch):
     }
     item = {
         "type": "Feature",
-        "stac_version": "0.7.0",
+        "stac_version": "1.0.0",
         "id": "i1",
         "geometry": None,
         "properties": {"datetime": "2020-01-01T00:00:00Z"},

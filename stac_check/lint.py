@@ -32,6 +32,37 @@ def _http_head_status(url: str, headers: Dict) -> int:
         resp.close()
 
 
+def _is_pre_1_0(data: Dict[str, Any]) -> bool:
+    """Return True when a STAC document declares a version below 1.0.0.
+
+    Unparseable or missing versions return False so the validator reports
+    its own error rather than a misleading version message.
+    """
+    version = data.get("stac_version", "") if isinstance(data, dict) else ""
+    try:
+        return tuple(int(p) for p in str(version).split(".")) < (1, 0, 0)
+    except (ValueError, AttributeError):
+        return False
+
+
+def _unsupported_version_message(data: Dict[str, Any], path: str) -> Dict[str, Any]:
+    """Build a failed validation message for pre-1.0 STAC documents."""
+    version = data.get("stac_version", "")
+    return {
+        "version": version,
+        "path": path,
+        "schema": [],
+        "valid_stac": False,
+        "asset_type": "",
+        "validation_method": "FastJSONSchema",
+        "error_type": "UnsupportedVersionError",
+        "error_message": (
+            f"STAC version {version} is not supported; stac-check validates "
+            "STAC 1.0.0 and later."
+        ),
+    }
+
+
 @dataclass
 class Linter:
     """A class for linting STAC JSON files and generating validation messages.
@@ -389,11 +420,14 @@ class Linter:
                 "error_message": "",
             }
 
+        data = file if isinstance(file, dict) else self.data
+        path = file if isinstance(file, str) else ""
+        if isinstance(data, dict) and _is_pre_1_0(data):
+            return _unsupported_version_message(data, path)
+
         # --pydantic swaps the validator for stac-pydantic models, matching
         # StacValidate's pydantic semantics
         if self.pydantic:
-            data = file if isinstance(file, dict) else self.data
-            path = file if isinstance(file, str) else ""
             return self._pydantic_validate(data, path=path)
 
         # Use FastValidator for fast mode
@@ -581,14 +615,55 @@ class Linter:
                     if not original_path.startswith("http"):
                         self.loaded_objects[os.path.abspath(original_path)] = data
                     if "type" not in data:
-                        # Pre-1.0 documents have no type field. A Collection
-                        # always has 'extent'; a Catalog does not but can
-                        # carry 'license', which is not a usable signal.
+                        # STAC Catalogs have no 'type' member at any version;
+                        # a Collection always has 'extent'.
                         if "extent" in data:
                             data["type"] = "Collection"
                         elif "id" in data and "description" in data:
                             data["type"] = "Catalog"
                 return data
+
+            def _validate_recursive(
+                self,
+                data,
+                file_path,
+                results,
+                visited,
+                is_api=False,
+                collection_id=None,
+                prefetched_resources=None,
+                depth=0,
+            ):
+                if _is_pre_1_0(data):
+                    # Report a clear error instead of letting get_validator
+                    # fail on schemas.stacspec.org, which does not host
+                    # pre-1.0 schemas. Do not descend into its children.
+                    results.append(
+                        {
+                            "path": file_path,
+                            "id": data.get("id", "unknown"),
+                            "valid_stac": False,
+                            "stac_type": str(data.get("type", "unknown")).lower(),
+                            "stac_version": data.get("stac_version", ""),
+                            "error_type": "UnsupportedVersionError",
+                            "error_message": (
+                                f"STAC version {data.get('stac_version', '')} "
+                                "is not supported; stac-check validates "
+                                "STAC 1.0.0 and later."
+                            ),
+                        }
+                    )
+                    return
+                super()._validate_recursive(
+                    data,
+                    file_path,
+                    results,
+                    visited,
+                    is_api,
+                    collection_id=collection_id,
+                    prefetched_resources=prefetched_resources,
+                    depth=depth,
+                )
 
         if self.max_depth is not None:
             warnings.warn(
@@ -684,7 +759,9 @@ class Linter:
             ),
             "validation_method": "FastJSONSchema",
             "valid_stac": valid,
-            "error_type": "" if valid else "FastValidationError",
+            "error_type": (
+                "" if valid else result.get("error_type", "FastValidationError")
+            ),
             "error_message": result.get("error_message", ""),
         }
 

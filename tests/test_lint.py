@@ -236,3 +236,35 @@ def test_linter_fast_linting_geometry_errors():
     linter = Linter(file, fast=True, fast_linting=True)
     assert linter.geometry_errors_msg[0] == "Geometry Validation [BETA]: "
     assert any("antimeridian" in msg for msg in linter.geometry_errors_msg)
+
+
+def test_linter_pre_1_0_rejected():
+    """Pre-1.0 STAC documents fail with a clear unsupported-version error
+    instead of a cryptic schema fetch failure."""
+    file = "sample_files/0.9.0/landsat8-sample.json"
+    linter = Linter(file)
+    assert linter.valid_stac is False
+    assert linter.error_type == "UnsupportedVersionError"
+    assert "0.9.0" in linter.error_msg
+    assert "1.0.0 and later" in linter.error_msg
+
+
+def test_linter_pre_1_0_rejected_recursive():
+    """Recursive fast validation reports pre-1.0 objects with the same
+    clear error and does not descend into their children."""
+    file = "sample_files/0.9.0/landsat8-sample.json"
+    linter = Linter(file, recursive=True, fast=True)
+    assert len(linter.validate_all) == 1
+    result = linter.validate_all[0]
+    assert result["valid_stac"] is False
+    assert result["error_type"] == "UnsupportedVersionError"
+    assert "1.0.0 and later" in result["error_message"]
+
+
+def test_linter_pre_1_0_rejected_dict():
+    """Dict input gets the same rejection."""
+    with open("sample_files/0.9.0/landsat8-sample.json") as f:
+        data = json.load(f)
+    linter = Linter(data)
+    assert linter.valid_stac is False
+    assert linter.error_type == "UnsupportedVersionError"
