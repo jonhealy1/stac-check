@@ -389,6 +389,13 @@ class Linter:
                 "error_message": "",
             }
 
+        # --pydantic swaps the validator for stac-pydantic models, matching
+        # StacValidate's pydantic semantics
+        if self.pydantic:
+            data = file if isinstance(file, dict) else self.data
+            path = file if isinstance(file, str) else ""
+            return self._pydantic_validate(data, path=path)
+
         # Use FastValidator for fast mode
         if self.fast:
             try:
@@ -601,6 +608,16 @@ class Linter:
             self._map_fast_recursive_result(result) for result in fast_validator.message
         ]
 
+        # --pydantic: re-validate each object with stac-pydantic models and
+        # overwrite the schema-validation fields, matching StacValidate's
+        # recursive pydantic mode
+        if self.pydantic:
+            for raw_result, mapped in zip(fast_validator.message, results):
+                obj = fast_validator.loaded_objects.get(raw_result.get("path", ""))
+                if not isinstance(obj, dict):
+                    continue
+                mapped.update(self._pydantic_validate(obj, path=mapped["path"]))
+
         # --fast-linting: run linting and geometry checks per object using the
         # already-loaded documents, without re-fetching or re-validating.
         if self.fast_linting:
@@ -780,6 +797,77 @@ class Linter:
                     result["request_invalid"].append(href)
 
         return result
+
+    def _pydantic_validate(
+        self, data: Dict[str, Any], path: str = ""
+    ) -> Dict[str, Any]:
+        """Validate a STAC document using stac-pydantic models directly.
+
+        Reproduces the message shape StacValidate's pydantic mode produced
+        so downstream display is unchanged: ``validation_method`` is
+        ``"pydantic"``, ``schema`` names the model used, and failures are
+        reported as ``PydanticValidationError``.
+
+        Args:
+            data: The STAC document to validate.
+            path: Path or URL recorded in the message's ``path`` field.
+
+        Returns:
+            A message dict in StacValidate format.
+        """
+        from .utilities import determine_asset_type
+
+        asset_type = determine_asset_type(data)
+        message: Dict[str, Any] = {
+            "version": data.get("stac_version", ""),
+            "path": path,
+            "schema": [""],
+            "valid_stac": False,
+            "asset_type": asset_type,
+            "validation_method": "pydantic",
+            "error_type": "",
+            "error_message": "",
+        }
+        try:
+            from pydantic import ValidationError
+            from stac_pydantic import Catalog, Collection, Item, ItemCollection
+            from stac_pydantic.extensions import validate_extensions
+
+            models = {
+                "ITEM": Item,
+                "COLLECTION": Collection,
+                "CATALOG": Catalog,
+                "FEATURECOLLECTION": ItemCollection,
+            }
+            model = models.get(asset_type)
+            if model is None:
+                raise ValueError(
+                    f"Unsupported STAC type for Pydantic validation: {asset_type}"
+                )
+            validated = model.model_validate(data)
+            message["schema"] = [f"stac-pydantic {model.__name__} model"]
+
+            if data.get("stac_extensions"):
+                if asset_type in ("ITEM", "COLLECTION"):
+                    validate_extensions(validated, reraise_exception=True)
+                message["extension_schemas"] = list(data["stac_extensions"])
+
+            message["valid_stac"] = True
+            message["model_validation"] = "passed"
+        except ValidationError as e:
+            error_details = [
+                f"{' -> '.join(map(str, err.get('loc', [])))}: {err.get('msg', '')}"
+                for err in e.errors()
+            ]
+            message["error_type"] = "PydanticValidationError"
+            message["error_message"] = (
+                f"Pydantic validation failed for {asset_type}: "
+                f"{'; '.join(error_details)}"
+            )
+        except Exception as e:
+            message["error_type"] = "PydanticValidationError"
+            message["error_message"] = str(e)
+        return message
 
     def get_message_field(self, field_name: str) -> str:
         """Get a field from the validation message.
