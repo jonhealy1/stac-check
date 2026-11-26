@@ -89,7 +89,7 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
     "--pages",
     "-p",
     type=int,
-    help="Maximum number of pages to validate via --item-collection or --collections. Defaults to one page.",
+    help="Maximum number of pages to validate per paginated list — with --item-collection/--collections/--catalogs (default: one page) or --recursive (default: one page per list; 0 for all pages).",
 )
 @click.option(
     "--recursive",
@@ -299,6 +299,7 @@ def main(
                 links=links,
                 recursive=recursive,
                 max_depth=max_depth,
+                pages=pages,
                 assets_open_urls=not no_assets_urls,
                 headers=dict(header),
                 pydantic=pydantic,

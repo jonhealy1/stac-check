@@ -486,7 +486,29 @@ def _display_validation_summary(
                     fg="yellow",
                 )
 
-        click.secho(f"\n🔍 All {len(all_paths)} Assets Checked")
+        # Per-type breakdown (items vs collections vs catalogs) when the
+        # walk covered more than one kind of object
+        type_counts: Dict[str, int] = {}
+        for result in results:
+            t = (result.get("asset_type") or "other").lower()
+            type_counts[t] = type_counts.get(t, 0) + 1
+        breakdown = ""
+        if len(type_counts) > 1:
+            ordered = [
+                t for t in ("catalog", "collection", "item") if t in type_counts
+            ] + sorted(
+                t for t in type_counts if t not in ("catalog", "collection", "item")
+            )
+            breakdown = (
+                " ("
+                + ", ".join(
+                    f"{type_counts[t]} {t}{'' if type_counts[t] == 1 else 's'}"
+                    for t in ordered
+                )
+                + ")"
+            )
+
+        click.secho(f"\n🔍 All {len(all_paths)} Assets Checked{breakdown}")
         if verbose or len(all_paths) <= 12:
             for path in all_paths:
                 click.secho(f"  - {path}")
@@ -853,6 +875,16 @@ def recursive_message(
         fast=linter.fast,
         total_time=getattr(linter, "fast_total_time", 0.0),
     )
+
+    truncations = getattr(linter, "truncated_lists", [])
+    if truncations:
+        cap = linter.pages if linter.pages is not None else 1
+        click.secho(
+            f"\nℹ️  {len(truncations)} paginated list(s) were cut short at the "
+            f"--pages cap ({cap} page{'s' if cap != 1 else ''} per list); more "
+            "results are available — increase --pages, or use --pages 0 for all pages",
+            fg="cyan",
+        )
 
 
 def cli_message(linter: Linter) -> None:

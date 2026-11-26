@@ -116,8 +116,10 @@ Options:
                            --pages. Defaults to one page.
   --catalogs               Validate catalogs endpoint response (STAC API catalogs
                            extension). Can be combined with --pages. Defaults to one page.
-  -p, --pages INTEGER      Maximum number of pages to validate via --item-collection,
-                           --collections, or --catalogs. Defaults to one page.
+  -p, --pages INTEGER      Maximum number of pages to validate per paginated list,
+                           via --item-collection/--collections/--catalogs (default:
+                           one page) or --recursive (default: one page per
+                           list; 0 for all pages).
   --help                   Show this message and exit.
 ```
 
@@ -264,7 +266,7 @@ Recursive validation walks the whole catalog in a single pass with FastJSONSchem
 stac-check catalog.json --recursive --fast
 ```
 
-`--max-depth` caps how deep the walk goes (objects at or beyond the limit are not validated), and `--headers` apply to remote fetches. Note that stac-check validates STAC 1.0.0 and later; documents declaring an older `stac_version` fail with a clear unsupported-version error instead of a cryptic schema failure.
+`--max-depth` caps how deep the walk goes (objects at or beyond the limit are not validated), and `--headers` apply to remote fetches. On remote STAC APIs the walk follows `rel=data`/`rel=items` links and paginates through each collections/items list — the first `rel="next"` page of each list by default (`--pages N` raises the cap, `--pages 0` follows every page; a note is printed when a list is cut short). Note that stac-check validates STAC 1.0.0 and later; documents declaring an older `stac_version` fail with a clear unsupported-version error instead of a cryptic schema failure.
 
 Multi-asset modes (`--recursive`, `--collections`, `--item-collection`) print a header and a validation summary by default. Add `--verbose`/`-v` for per-asset detail, as shown below:
 

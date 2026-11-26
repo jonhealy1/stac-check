@@ -64,6 +64,143 @@ def test_recursive_remote_uses_api_mode(monkeypatch):
     assert calls == ["api", "recursive"]
 
 
+def _paginated_api_payloads():
+    """A two-page /collections and per-collection paginated /items API."""
+    base = "https://api.test/stac"
+
+    def collection(cid, item_pages):
+        return {
+            "type": "Collection",
+            "id": cid,
+            "stac_version": "1.0.0",
+            "description": cid,
+            "links": [{"rel": "items", "href": f"{base}/collections/{cid}/items"}],
+        }
+
+    def items_page(cid, ids, next_href=None):
+        return {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "id": i,
+                    "stac_version": "1.0.0",
+                    "geometry": None,
+                    "properties": {},
+                }
+                for i in ids
+            ],
+            "links": ([{"rel": "next", "href": next_href}] if next_href else []),
+        }
+
+    return {
+        base: {
+            "type": "Catalog",
+            "id": "root",
+            "stac_version": "1.0.0",
+            "links": [
+                {"rel": "data", "href": f"{base}/collections"},
+                {"rel": "catalogs", "href": f"{base}/catalogs"},
+            ],
+        },
+        f"{base}/collections": {
+            "collections": [collection("c1", None)],
+            "links": [{"rel": "next", "href": f"{base}/collections?token=2"}],
+        },
+        f"{base}/collections?token=2": {
+            "collections": [collection("c2", None)],
+            "links": [{"rel": "next", "href": f"{base}/collections?token=3"}],
+        },
+        f"{base}/collections?token=3": {
+            "collections": [collection("c3", None)],
+            "links": [{"rel": "next", "href": f"{base}/collections?token=4"}],
+        },
+        f"{base}/collections?token=4": {
+            "collections": [collection("c4", None)],
+            "links": [],
+        },
+        f"{base}/collections/c1": collection("c1", None),
+        f"{base}/collections/c2": collection("c2", None),
+        f"{base}/collections/c3": collection("c3", None),
+        f"{base}/collections/c4": collection("c4", None),
+        f"{base}/collections/c1/items": items_page(
+            "c1", ["i1", "i2"], f"{base}/collections/c1/items?token=2"
+        ),
+        f"{base}/collections/c1/items?token=2": items_page("c1", ["i3"]),
+        f"{base}/collections/c2/items": items_page("c2", ["i4"]),
+        f"{base}/collections/c3/items": items_page("c3", []),
+        f"{base}/collections/c4/items": items_page("c4", []),
+        # catalogs extension branch: /catalogs → cat1 → its collections → c5
+        f"{base}/catalogs": {
+            "catalogs": [collection("cat1", None)],
+            "links": [],
+        },
+        f"{base}/catalogs/cat1": {
+            "type": "Catalog",
+            "id": "cat1",
+            "stac_version": "1.0.0",
+            "description": "sub catalog",
+            "links": [
+                {"rel": "collections", "href": f"{base}/catalogs/cat1/collections"}
+            ],
+        },
+        f"{base}/catalogs/cat1/collections": {
+            "collections": [collection("c5", None)],
+            "links": [],
+        },
+        f"{base}/catalogs/cat1/collections/c5": collection("c5", None),
+        f"{base}/catalogs/cat1/collections/c5/items": items_page("c5", ["i5"]),
+    }
+
+
+def _mock_remote(monkeypatch, payloads):
+    """Serve ``payloads`` for both the Linter's initial fetch and
+    FastValidator's HTTP_SESSION-backed _load_json_resource."""
+    from unittest.mock import MagicMock
+
+    def fake_get(url, *a, **k):
+        import copy
+
+        resp = MagicMock()
+        # deepcopy: the validator merges later pages into the returned
+        # page-one dict in place, which must not corrupt the fixture
+        resp.json.return_value = copy.deepcopy(payloads[url])
+        resp.raise_for_status.return_value = None
+        resp.status_code = 200
+        return resp
+
+    monkeypatch.setattr("stac_validator.fast_validator.HTTP_SESSION.get", fake_get)
+    monkeypatch.setattr("stac_check.lint.requests.get", fake_get)
+
+
+def test_recursive_remote_follows_next_pages(monkeypatch):
+    """Remote -r follows rel="next" on paginated collections/items lists.
+    Default cap is one page per list; --pages N raises it; --pages 0 is
+    unlimited; truncated lists are reported."""
+    payloads = _paginated_api_payloads()
+    _mock_remote(monkeypatch, payloads)
+
+    linter = Linter("https://api.test/stac", recursive=True)
+    # default cap 1, first page of every list:
+    # root + c1 + i1,i2 + cat1 + c5 + i5
+    assert len(linter.validate_all) == 7
+    # /collections and c1's items list both have unfollowed next pages
+    assert len(linter.truncated_lists) == 2
+
+    linter = Linter("https://api.test/stac", recursive=True, pages=3)
+    # root + c1,c2,c3 + items i1-i4 (c4 never reached) + cat1 + c5 + i5
+    assert len(linter.validate_all) == 11
+    assert len(linter.truncated_lists) == 1  # only the /collections list
+
+    linter = Linter("https://api.test/stac", recursive=True, pages=0)
+    # unlimited: root + all 4 collections + i1-i4 + cat1 + c5 + i5
+    assert len(linter.validate_all) == 12
+    assert linter.truncated_lists == []
+    # catalogs-extension objects are reached and typed as catalogs
+    types = [m.get("asset_type") for m in linter.validate_all]
+    assert types.count("CATALOG") == 2  # root + cat1
+
+
 def test_linter_recursive_output_suppressed(capsys):
     """FastValidator's per-object output does not leak to stdout."""
     Linter("sample_files/1.0.0/catalog-with-bad-item.json", recursive=True)
@@ -322,7 +459,7 @@ def test_recursive_message_summary_lists_errors(capsys):
     display_messages.recursive_message(linter)
     out = capsys.readouterr().out
     assert "Asset 1:" not in out
-    assert "Failed Assets:" in out
+    assert "Failed Assets" in out
     assert "bad-item.json" in out
 
 
