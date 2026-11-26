@@ -114,8 +114,10 @@ Options:
                            --pages. Defaults to one page.
   --collections            Validate collections endpoint response. Can be combined with
                            --pages. Defaults to one page.
-  -p, --pages INTEGER      Maximum number of pages to validate via --item-collection
-                           or --collections. Defaults to one page.
+  --catalogs               Validate catalogs endpoint response (STAC API catalogs
+                           extension). Can be combined with --pages. Defaults to one page.
+  -p, --pages INTEGER      Maximum number of pages to validate via --item-collection,
+                           --collections, or --catalogs. Defaults to one page.
   --help                   Show this message and exit.
 ```
 
@@ -494,7 +496,7 @@ Use `--fast` when:
 
 ### STAC API Validation
 
-stac-check can validate STAC API endpoints, including item collections and collections endpoints. It supports pagination and can validate multiple pages of results. Item collection (`{"type": "FeatureCollection", "features": [...]}`) and collections endpoint (`{"collections": [...]}`) responses are auto-detected, so the corresponding flags are optional.
+stac-check can validate STAC API endpoints, including item collections, collections, and catalogs (STAC API catalogs extension) endpoints. It supports pagination and can validate multiple pages of results. Item collection (`{"type": "FeatureCollection", "features": [...]}`), collections endpoint (`{"collections": [...]}`), and catalogs endpoint (`{"catalogs": [...]}`) responses are auto-detected, so the corresponding flags are optional.
 
 **Validating an Item Collection Endpoint:**
 

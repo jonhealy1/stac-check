@@ -730,6 +730,7 @@ def collections_message(
     results: Optional[List[Dict[str, Any]]] = None,
     cli_message_func: Optional[Callable[[Linter], None]] = None,
     verbose: bool = False,
+    title: str = "Collections: Validate all collections in a STAC API",
 ) -> None:
     """Displays messages related to the validation of STAC collections from a collections endpoint.
 
@@ -773,7 +774,7 @@ def collections_message(
     # Display the results using the shared helper
     _display_validation_results(
         results=results,
-        title="Collections: Validate all collections in a STAC API",
+        title=title,
         metadata={"Pages": linter.pages},
         cli_message_func=cli_message_func,
         create_linter_func=create_collection_linter,

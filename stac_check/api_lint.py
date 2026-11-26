@@ -269,7 +269,7 @@ class ApiLinter:
             objects = response.get(self.object_list_key)
             if not isinstance(objects, list):
                 objects = []
-                for alt in ("features", "collections"):
+                for alt in ("features", "collections", "catalogs"):
                     if alt != self.object_list_key and isinstance(
                         response.get(alt), list
                     ):
@@ -331,7 +331,7 @@ class ApiLinter:
                 with open(self.source) as f:
                     envelope = json.load(f)
                 if isinstance(envelope, dict):
-                    for alt in ("features", "collections"):
+                    for alt in ("features", "collections", "catalogs"):
                         if alt != self.object_list_key and isinstance(
                             envelope.get(alt), list
                         ):

@@ -52,6 +52,8 @@ def detect_api_response_type(file: str, headers: dict = None) -> Optional[str]:
         return "item_collection"
     if isinstance(data.get("collections"), list) and len(data["collections"]) > 0:
         return "collections"
+    if isinstance(data.get("catalogs"), list) and len(data["catalogs"]) > 0:
+        return "catalogs"
     return None
 
 
@@ -77,6 +79,11 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
     "--item-collection",
     is_flag=True,
     help="Validate item collection response. Can be combined with --pages. Defaults to one page.",
+)
+@click.option(
+    "--catalogs",
+    is_flag=True,
+    help="Validate catalogs endpoint response (STAC API catalogs extension). Can be combined with --pages. Defaults to one page.",
 )
 @click.option(
     "--pages",
@@ -142,6 +149,7 @@ def main(
     file: str,
     collections: bool,
     item_collection: bool,
+    catalogs: bool,
     pages: Optional[int],
     recursive: bool,
     max_depth: Optional[int],
@@ -160,6 +168,7 @@ def main(
         file: The STAC file or URL to validate
         collections: Validate a collections endpoint
         item_collection: Validate an item collection
+        catalogs: Validate a catalogs endpoint (STAC API catalogs extension)
         pages: Number of pages to validate (for API endpoints)
         recursive: Recursively validate linked STAC objects
         max_depth: Maximum depth for recursive validation
@@ -169,13 +178,13 @@ def main(
         header: Additional HTTP headers
         pydantic: Use stac-pydantic for validation
         verbose: Show verbose output
-        output: Save output to file (only with --collections, --item-collection, or --recursive)
+        output: Save output to file (only with --collections, --item-collection, --catalogs, or --recursive)
         fast: Skip linting and geometry checks for maximum validation speed
     """
-    # Check if output is used without --collections, --item-collection, or --recursive
-    if output and not any([collections, item_collection, recursive]):
+    # Check if output is used without a multi-asset mode
+    if output and not any([collections, item_collection, catalogs, recursive]):
         click.echo(
-            "Error: --output can only be used with --collections, --item-collection, or --recursive",
+            "Error: --output can only be used with --collections, --item-collection, --catalogs, or --recursive",
             err=True,
         )
         sys.exit(1)
@@ -192,18 +201,23 @@ def main(
             pydantic = False
 
     # Auto-detect API list responses if no explicit flag is set
-    if not collections and not item_collection and not recursive:
+    if not collections and not item_collection and not catalogs and not recursive:
         detected = detect_api_response_type(file, headers=dict(header))
         if detected == "item_collection":
             item_collection = True
         elif detected == "collections":
             collections = True
+        elif detected == "catalogs":
+            catalogs = True
 
-    if collections or item_collection:
-        # Handle API-based validation (collections or item collections)
+    if collections or item_collection or catalogs:
+        # Handle API-based validation (collections, item collections, catalogs)
+        object_list_key = (
+            "collections" if collections else "catalogs" if catalogs else "features"
+        )
         api_linter = ApiLinter(
             source=file,
-            object_list_key="collections" if collections else "features",
+            object_list_key=object_list_key,
             pages=pages if pages else 1,
             headers=dict(header),
             verbose=verbose,
@@ -227,11 +241,11 @@ def main(
 
         if not results:
             if api_linter.mismatched_list_key:
-                suggested = (
-                    "--item-collection"
-                    if api_linter.mismatched_list_key == "features"
-                    else "--collections"
-                )
+                suggested = {
+                    "features": "--item-collection",
+                    "collections": "--collections",
+                    "catalogs": "--catalogs",
+                }[api_linter.mismatched_list_key]
                 click.secho(
                     f"Error: no '{api_linter.object_list_key}' objects found in "
                     f"{file}; the response contains "
@@ -253,12 +267,17 @@ def main(
 
         # Define output generation function (without intro message since we already showed it)
         def generate_output():
-            if collections:
+            if collections or catalogs:
                 collections_message(
                     api_linter,
                     results=results,
                     cli_message_func=cli_message,
                     verbose=verbose,
+                    title=(
+                        "Catalogs: Validate all catalogs in a STAC API"
+                        if catalogs
+                        else "Collections: Validate all collections in a STAC API"
+                    ),
                 )
             elif item_collection:
                 item_collection_message(

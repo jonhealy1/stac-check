@@ -164,7 +164,7 @@ def test_cli_output_without_required_flags(runner):
         )
         assert result.exit_code == 1
         assert (
-            "--output can only be used with --collections, --item-collection, or --recursive"
+            "--output can only be used with --collections, --item-collection, --catalogs, or --recursive"
             in result.output
         )
 
@@ -462,6 +462,47 @@ def test_cli_collections_flag_on_single_collection(runner):
     result = runner.invoke(cli_main, [test_file, "--collections"])
 
     assert "1 Assets Checked" in result.output
+
+
+def test_detect_api_response_type_catalogs():
+    """A catalogs endpoint response is detected as 'catalogs'."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/catalogs.json"
+    )
+    assert detect_api_response_type(test_file) == "catalogs"
+
+
+def test_cli_auto_detect_catalogs(runner):
+    """Test that the CLI auto-detects a catalogs endpoint response."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/catalogs.json"
+    )
+    result = runner.invoke(cli_main, [test_file])
+
+    assert "Catalogs: Validate all catalogs" in result.output
+    assert "Assets Checked" in result.output
+
+
+def test_cli_catalogs_flag_on_collections_errors(runner):
+    """--catalogs on a collections response suggests --collections."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/collections.json"
+    )
+    result = runner.invoke(cli_main, [test_file, "--catalogs"])
+
+    assert result.exit_code == 1
+    assert "did you mean --collections" in result.output
+
+
+def test_cli_collections_flag_on_catalogs_errors(runner):
+    """--collections on a catalogs response suggests --catalogs."""
+    test_file = os.path.join(
+        os.path.dirname(__file__), "../sample_files/1.0.0/catalogs.json"
+    )
+    result = runner.invoke(cli_main, [test_file, "--collections"])
+
+    assert result.exit_code == 1
+    assert "did you mean --catalogs" in result.output
 
 
 def test_cli_auto_detect_respects_explicit_flag(runner):
