@@ -230,7 +230,8 @@ def test_linter_recursive_fast():
     assert linter.recursive == True
     assert len(linter.validate_all) == 3  # catalog + 2 items
     assert all(
-        msg["validation_method"] == "FastJSONSchema" for msg in linter.validate_all
+        msg["validation_method"] == "stac-valid FastValidator"
+        for msg in linter.validate_all
     )
     invalid = next(msg for msg in linter.validate_all if not msg["valid_stac"])
     assert invalid["path"].endswith("bad-item.json")
@@ -551,7 +552,7 @@ def test_recursive_message_fast_silences_output(monkeypatch, capsys):
             "path": f"/tmp/item-{i}.json",
             "schema": [],
             "asset_type": "ITEM",
-            "validation_method": "FastJSONSchema",
+            "validation_method": "stac-valid FastValidator",
             "valid_stac": True,
             "error_type": "",
             "error_message": "",
@@ -587,7 +588,8 @@ def test_linter_recursive_100():
     assert len(stac.validate_all) == 4
     assert all(msg["valid_stac"] is True for msg in stac.validate_all)
     assert all(
-        msg["validation_method"] == "FastJSONSchema" for msg in stac.validate_all
+        msg["validation_method"] == "stac-valid FastValidator"
+        for msg in stac.validate_all
     )
     assert {msg["asset_type"] for msg in stac.validate_all} == {
         "COLLECTION",

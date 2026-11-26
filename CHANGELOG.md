@@ -10,7 +10,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ### Changed
 
-- **Single validation engine**: the legacy `StacValidate` (jsonschema) engine has been removed; all validation now runs through `FastValidator` (fastjsonschema) from stac-valid. `validation_method`/`validator_engine` report `"FastJSONSchema"` and `error_type` reports `"FastValidationError"` instead of `"JSONSchemaValidationError"`
+- **Single validation engine**: the legacy `StacValidate` (jsonschema) engine has been removed; all validation now runs through `FastValidator` (fastjsonschema) from stac-valid. `validation_method`/`validator_engine` report `"stac-valid FastValidator"` and `error_type` reports `"FastValidationError"` instead of `"JSONSchemaValidationError"`
 - `--fast` is redefined as "validation only": it skips linting and geometry checks for maximum speed in every mode
 - Linting and geometry checks now run by default in every mode, including per object during `--recursive`
 - `--max-depth` is now honored in recursive mode (objects at or beyond the limit are not validated); it was previously ignored in fast mode. Depth-capped objects are also no longer fetched at all — upstream previously prefetched every linked collection and its items pages before the cap was applied
@@ -100,7 +100,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 ### Added
 
-- Support for FastJSONSchema validation method with --fast flag to validate items, item collections ([#150](https://github.com/stac-utils/stac-check/pull/150))
+- Support for stac-valid FastValidator validation method with --fast flag to validate items, item collections ([#150](https://github.com/stac-utils/stac-check/pull/150))
 
 ### Updated
 

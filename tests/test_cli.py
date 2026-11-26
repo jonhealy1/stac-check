@@ -60,7 +60,7 @@ def test_cli_validate_recursive_fast(runner):
     )
     result = runner.invoke(cli_main, [test_dir, "--recursive", "--fast"])
     assert result.exit_code == 1
-    assert "Validation method: FastJSONSchema" in result.output
+    assert "Validation method: stac-valid FastValidator" in result.output
     assert "Failed: 1/3" in result.output
     assert "must contain" in result.output
 
@@ -540,7 +540,7 @@ def test_cli_fast_validation_single_file(runner):
     )
     result = runner.invoke(cli_main, [test_file, "--fast"])
     assert result.exit_code == 0
-    assert "FastJSONSchema" in result.output
+    assert "stac-valid FastValidator" in result.output
 
 
 def test_cli_fast_validation_item_collection(runner):
@@ -550,7 +550,7 @@ def test_cli_fast_validation_item_collection(runner):
     )
     result = runner.invoke(cli_main, [test_file, "--fast"])
     assert result.exit_code == 0
-    assert "FastJSONSchema" in result.output
+    assert "stac-valid FastValidator" in result.output
     assert "Validation Summary" in result.output
     assert "Schemas checked:" in result.output
 

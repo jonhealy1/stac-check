@@ -141,7 +141,7 @@ def test_lint_header():
         assert msg["version"] == "1.0.0"
         assert msg["path"] == url
         assert msg["valid_stac"] is True
-        assert msg["validation_method"] == "FastJSONSchema"
+        assert msg["validation_method"] == "stac-valid FastValidator"
         assert linter.asset_type == "ITEM"
         assert linter.schema == [
             "https://schemas.stacspec.org/v1.0.0/item-spec/json-schema/item.json"
@@ -176,7 +176,7 @@ def test_linter_fast_validates_valid_dict():
         data = json.load(f)
     linter = Linter(data, fast=True)
     assert linter.valid_stac == True
-    assert linter.message["validation_method"] == "FastJSONSchema"
+    assert linter.message["validation_method"] == "stac-valid FastValidator"
 
 
 def test_linter_fast_validates_invalid_dict():

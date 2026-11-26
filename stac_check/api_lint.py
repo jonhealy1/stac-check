@@ -136,7 +136,7 @@ def validate_collection_fast(
             "valid_stac": is_valid,
             "asset_type": "",
             "version": obj.get("stac_version", ""),
-            "validation_method": "FastJSONSchema",
+            "validation_method": "stac-valid FastValidator",
             "error_type": "FastValidationError" if not is_valid else "",
             "error_message": error_messages[0] if error_messages else "",
             "best_practices": best_practices,

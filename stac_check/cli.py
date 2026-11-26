@@ -95,7 +95,7 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
     "--recursive",
     "-r",
     is_flag=True,
-    help="Recursively validate all related stac objects. Can be combined with --fast for FastJSONSchema validation.",
+    help="Recursively validate all related stac objects. Can be combined with --fast for stac-valid FastValidator validation.",
 )
 @click.option(
     "--max-depth",
@@ -332,7 +332,7 @@ def main(
                     "valid_stac": linter.valid_stac,
                     "asset_type": linter.asset_type,
                     "version": linter.version,
-                    "validation_method": "FastJSONSchema",
+                    "validation_method": "stac-valid FastValidator",
                     "error_type": linter.error_type,
                     "error_message": linter.error_msg,
                     "best_practices": linter.best_practices_msg,

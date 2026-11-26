@@ -946,7 +946,7 @@ def intro_message(linter: Linter) -> None:
     if hasattr(linter, "pydantic") and linter.pydantic:
         validation_method = "Pydantic"
     else:
-        validation_method = "FastJSONSchema"
+        validation_method = "stac-valid FastValidator"
 
     click.secho(f"\n Validation method: {validation_method}", bg="cyan", fg="white")
 

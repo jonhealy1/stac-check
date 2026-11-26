@@ -62,7 +62,7 @@ def _unsupported_version_message(data: Dict[str, Any], path: str) -> Dict[str, A
         "schema": [],
         "valid_stac": False,
         "asset_type": "",
-        "validation_method": "FastJSONSchema",
+        "validation_method": "stac-valid FastValidator",
         "error_type": "UnsupportedVersionError",
         "error_message": (
             f"STAC version {version} is not supported; stac-check validates "
@@ -420,7 +420,7 @@ class Linter:
                 "valid_stac": True,
                 "asset_type": "",
                 "version": file.get("stac_version", ""),
-                "validation_method": "FastJSONSchema",
+                "validation_method": "stac-valid FastValidator",
                 "error_type": "",
                 "error_message": "",
             }
@@ -492,7 +492,7 @@ class Linter:
             "version": (
                 self.data.get("stac_version", "") if isinstance(self.data, dict) else ""
             ),
-            "validation_method": "FastJSONSchema",
+            "validation_method": "stac-valid FastValidator",
             "error_type": ("FastValidationError" if not fast_validator.valid else ""),
             "error_message": error_message,
             "schema": fv_msg.get("schemas_checked", []),
@@ -859,7 +859,7 @@ class Linter:
                     "path": file,
                     "schema": [],
                     "asset_type": "",
-                    "validation_method": "FastJSONSchema",
+                    "validation_method": "stac-valid FastValidator",
                     "valid_stac": False,
                     "error_type": "FastValidationError",
                     "error_message": error_message,
@@ -892,7 +892,7 @@ class Linter:
             "asset_type": (
                 stac_type.upper() if stac_type not in ("", "unknown") else ""
             ),
-            "validation_method": "FastJSONSchema",
+            "validation_method": "stac-valid FastValidator",
             "valid_stac": valid,
             "error_type": (
                 "" if valid else result.get("error_type", "FastValidationError")

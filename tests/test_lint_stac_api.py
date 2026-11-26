@@ -205,7 +205,7 @@ def test_fast_mode_validates_remote_objects():
     valid_result = next(r for r in results if r["path"].endswith("20201211_223832_CS2"))
     invalid_result = next(r for r in results if not r["valid_stac"])
     assert valid_result["valid_stac"] is True
-    assert invalid_result["validation_method"] == "FastJSONSchema"
+    assert invalid_result["validation_method"] == "stac-valid FastValidator"
     assert invalid_result["error_type"] == "FastValidationError"
 
 

@@ -19,9 +19,9 @@ The intent of this project is to provide a validation tool that also follows the
 
 ## Latest News
 
-- **11/26/2026:** 🚀 **stac-check 2.0!** The legacy validation engine has been removed — stac-check now validates everything with FastJSONSchema in a single pass, and recursive display no longer re-fetches or re-validates every asset. `--fast` now means "validation only": it skips linting and geometry checks for maximum speed, and `--fast-linting` has been removed (linting runs by default). `--max-depth` is honored in recursive mode, `--assets`/`--links` checks now work with every mode, and STAC documents older than 1.0.0 are rejected with a clear error instead of a cryptic schema failure. See the [2.0.0 changelog entry](CHANGELOG.md#v200) for the full migration notes.
+- **11/26/2026:** 🚀 **stac-check 2.0!** The legacy validation engine has been removed — stac-check now validates everything with stac-valid FastValidator in a single pass, and recursive display no longer re-fetches or re-validates every asset. `--fast` now means "validation only": it skips linting and geometry checks for maximum speed, and `--fast-linting` has been removed (linting runs by default). `--max-depth` is honored in recursive mode, `--assets`/`--links` checks now work with every mode, and STAC documents older than 1.0.0 are rejected with a clear error instead of a cryptic schema failure. See the [2.0.0 changelog entry](CHANGELOG.md#v200) for the full migration notes.
 
-- **11/26/2026:** ⚡ **Fast Recursive Validation! (v1.15.0)** `--fast` now works with `--recursive`, validating an entire catalog and all of its linked objects with FastJSONSchema in a single pass instead of re-fetching and re-validating every asset during display. In our benchmarks it validated a local catalog of 61 objects **~30× faster** than standard recursion (0.08s vs 2.5s validation time, ~19× end-to-end) and a remote catalog end-to-end **~6× faster** (2.9s vs 17.6s). Custom `--headers` are applied to remote fetches, `--fast-linting` additionally runs linting and geometry checks per object (removed in 2.0.0 — linting is now the default), and results are shown in the compact summary with errors grouped across the whole walk.
+- **11/26/2026:** ⚡ **Fast Recursive Validation! (v1.15.0)** `--fast` now works with `--recursive`, validating an entire catalog and all of its linked objects with stac-valid FastValidator in a single pass instead of re-fetching and re-validating every asset during display. In our benchmarks it validated a local catalog of 61 objects **~30× faster** than standard recursion (0.08s vs 2.5s validation time, ~19× end-to-end) and a remote catalog end-to-end **~6× faster** (2.9s vs 17.6s). Custom `--headers` are applied to remote fetches, `--fast-linting` additionally runs linting and geometry checks per object (removed in 2.0.0 — linting is now the default), and results are shown in the compact summary with errors grouped across the whole walk.
 
 ## Table of Contents
 
@@ -233,7 +233,7 @@ Please upgrade from version 1.0.0 to version 1.1.0!
 
 Validator: stac-valid 4.6.4
 
-Validation method: FastJSONSchema
+Validation method: stac-valid FastValidator
 
 ITEM Passed: True
 
@@ -260,7 +260,7 @@ This object has 4 links
 stac-check https://digital-atlas.s3.amazonaws.com/stac/public_stac/population/worldpop_2020/collection.json --recursive --verbose
 ```
 
-Recursive validation walks the whole catalog in a single pass with FastJSONSchema and runs linting and geometry checks on every object by default. Add `--fast` to skip those checks for maximum speed:
+Recursive validation walks the whole catalog in a single pass with stac-valid FastValidator and runs linting and geometry checks on every object by default. Add `--fast` to skip those checks for maximum speed:
 
 ```bash
 stac-check catalog.json --recursive --fast
@@ -276,7 +276,7 @@ Please upgrade from version 1.0.0 to version 1.1.0!
 
 Validator: stac-valid 4.6.4
 
-Validation method: FastJSONSchema
+Validation method: stac-valid FastValidator
 
 
 Recursive: Validate all assets in a collection or catalog
@@ -319,7 +319,7 @@ Please upgrade from version 1.0.0 to version 1.1.0!
 
 Validator: stac-valid 4.6.4
 
-Validation method: FastJSONSchema
+Validation method: stac-valid FastValidator
 
 ITEM Passed: True
 
@@ -358,7 +358,7 @@ Please upgrade from version 1.0.0 to version 1.1.0!
 
 Validator: stac-valid 4.6.4
 
-Validation method: FastJSONSchema
+Validation method: stac-valid FastValidator
 
 ITEM Passed: True
 
@@ -405,7 +405,7 @@ Please upgrade from version 1.0.0 to version 1.1.0!
 
 Validator: stac-valid 4.6.4
 
-Validation method: FastJSONSchema
+Validation method: stac-valid FastValidator
 
 ITEM Passed: False
 
@@ -434,7 +434,7 @@ Please upgrade from version 1.0.0 to version 1.1.0!
 
 Validator: stac-valid 4.6.4
 
-Validation method: FastJSONSchema
+Validation method: stac-valid FastValidator
 
 ITEM Passed: True
 
@@ -454,7 +454,7 @@ This object has 4 links
 
 ### Fast Validation
 
-stac-check always validates with FastJSONSchema. By default it also runs best practices linting and geometry checks; for large collections or when you only need spec compliance, use `--fast` to skip them for maximum validation speed.
+stac-check always validates with stac-valid FastValidator. By default it also runs best practices linting and geometry checks; for large collections or when you only need spec compliance, use `--fast` to skip them for maximum validation speed.
 
 ```bash
 stac-check large_collection.json --fast
@@ -464,7 +464,7 @@ stac-check large_collection.json --fast
 
 Validator: stac-valid 4.6.4
 
-Validation method: FastJSONSchema
+Validation method: stac-valid FastValidator
 
  Validation Summary
 

@@ -18,7 +18,7 @@ def test_lint_assets_no_links(mock_get):
     assert linter.message["version"] == "1.0.0"
     assert linter.message["path"] == file
     assert linter.message["valid_stac"] is True
-    assert linter.message["validation_method"] == "FastJSONSchema"
+    assert linter.message["validation_method"] == "stac-valid FastValidator"
     assert linter.message["assets_validated"] == {
         "format_valid": [
             "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2_analytic.tif",
