@@ -262,3 +262,29 @@ def test_linter_unrecognized_json_reports_error():
     assert linter.valid_stac is False
     assert linter.error_type == "FastValidationError"
     assert "type" in linter.error_msg.lower() or "Unknown" in linter.error_msg
+
+
+def test_linter_draft07_extension_schema():
+    """Draft-07 extension schemas validate under their declared dialect.
+
+    Regression test for https://github.com/stac-utils/stac-check/issues/159:
+    the Portolan extension declares draft-07 and uses the tuple form of
+    'items', which crashed the old jsonschema engine's hardcoded 2020-12
+    resolver. FastValidator compiles it with fastjsonschema instead.
+    """
+    item = {
+        "type": "Feature",
+        "stac_version": "1.0.0",
+        "id": "portolan-item",
+        "geometry": {"type": "Point", "coordinates": [0, 0]},
+        "bbox": [-180, -90, 180, 90],
+        "properties": {"datetime": "2020-01-01T00:00:00Z"},
+        "links": [],
+        "assets": {},
+        "stac_extensions": [
+            "https://schemas.portolan-sdi.org/portolan/v0.1.1/schema.json"
+        ],
+    }
+    linter = Linter(item)
+    assert linter.valid_stac is True
+    assert linter.error_type == ""

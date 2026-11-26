@@ -30,6 +30,7 @@ The format is (loosely) based on [Keep a Changelog](http://keepachangelog.com/) 
 
 - `--assets`/`--links` checks now run in every mode (they were silently skipped in fast mode)
 - Malformed self/alternate links no longer fabricate bogus resolved URLs (e.g. `http://catalog/collection.json`) in link checks
+- Extension schemas declaring an older JSON Schema dialect (e.g. draft-07 schemas like Portolan using the tuple form of `items`) no longer crash validation: extension schemas are compiled by fastjsonschema under their own semantics instead of the legacy engine's hardcoded 2020-12 resolver ([#159](https://github.com/stac-utils/stac-check/issues/159))
 
 ## [v1.15.1] - 2026-11-26
 
