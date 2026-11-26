@@ -1,11 +1,10 @@
 import importlib.metadata
 import importlib.resources
-import io
 import json
 import os
 import re
 import time
-from contextlib import contextmanager, nullcontext, redirect_stdout
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin
@@ -14,7 +13,6 @@ import requests
 import yaml
 from dotenv import load_dotenv
 from stac_validator.utilities import is_url, is_valid_url
-from stac_validator.validate import StacValidate
 
 load_dotenv()
 
@@ -78,9 +76,8 @@ class Linter:
         headers (dict): HTTP headers to include in the requests.
         pydantic (bool, optional): A boolean value indicating whether to use pydantic validation. Defaults to False.
         verbose (bool, optional): A boolean value indicating whether to enable verbose output. Defaults to False.
-        fast (bool, optional): A boolean value indicating whether to use fast validation mode (skips geometry checks for performance). Defaults to False.
-        fast_linting (bool, optional): A boolean value indicating whether to run linting checks in fast mode. Defaults to False.
-        prevalidated (bool, optional): A boolean value indicating that a dict input was already validated upstream (e.g. as part of a collection validated by FastValidator) so validation can be skipped in fast mode. Defaults to False.
+        fast (bool, optional): A boolean value indicating whether to skip linting and geometry checks for maximum validation speed. Defaults to False.
+        prevalidated (bool, optional): A boolean value indicating that a dict input was already validated upstream (e.g. as part of a collection validated by FastValidator) so validation can be skipped. Defaults to False.
 
     Attributes:
         data (dict): A dictionary representing the STAC JSON file.
@@ -194,7 +191,6 @@ class Linter:
     pydantic: bool = False
     verbose: bool = False
     fast: bool = False
-    fast_linting: bool = False
     prevalidated: bool = False
 
     def __post_init__(self):
@@ -214,7 +210,7 @@ class Linter:
                 self.pydantic = False
 
         self.data = self.load_data(self.item)
-        if self.recursive and self.fast and isinstance(self.item, str):
+        if self.recursive and isinstance(self.item, str):
             # run_recursive() already validates the root document, so reuse
             # its result instead of fetching and validating it a second time
             self.validate_all = self.recursive_validation(self.item)
@@ -407,10 +403,9 @@ class Linter:
         Raises:
             ValueError: If `file` is not a valid file path or STAC dictionary.
         """
-        # In fast mode, skip validation for dicts that were already validated
-        # upstream (e.g. items of a collection validated by FastValidator) and
-        # only run linting checks
-        if self.fast and self.prevalidated and isinstance(file, dict):
+        # Skip validation for dicts that were already validated upstream
+        # (e.g. objects linted from a recursive run) and only run linting
+        if self.prevalidated and isinstance(file, dict):
             return {
                 "valid_stac": True,
                 "asset_type": "",
@@ -430,86 +425,63 @@ class Linter:
         if self.pydantic:
             return self._pydantic_validate(data, path=path)
 
-        # Use FastValidator for fast mode
-        if self.fast:
-            try:
-                from stac_validator.fast_validator import FastValidator
-
-                with self._fast_validator_context():
-                    fast_validator = FastValidator(
-                        file if isinstance(file, str) else "in-memory",
-                        quiet=False,
-                    )
-                    if isinstance(file, dict):
-                        fast_validator.run_dict(file)
-                    else:
-                        fast_validator.run()
-
-                # Use the message attribute directly from FastValidator if available
-                # FastValidator.message is a list with one dict containing all validation info
-                fv_msg = {}
-                if hasattr(fast_validator, "message"):
-                    if (
-                        isinstance(fast_validator.message, list)
-                        and len(fast_validator.message) > 0
-                    ):
-                        fv_msg = fast_validator.message[0]
-                    elif isinstance(fast_validator.message, dict):
-                        fv_msg = fast_validator.message
-
-                # Extract error message from the first error if any
-                error_message = ""
-                if not fast_validator.valid and "errors" in fv_msg:
-                    errors = fv_msg.get("errors", [])
-                    if errors and len(errors) > 0:
-                        error_message = errors[0].get("error_message", "")
-
-                # Convert FastValidator result to StacValidate message format
-                return {
-                    "valid_stac": fast_validator.valid,
-                    "asset_type": "",
-                    "version": (
-                        self.data.get("stac_version", "")
-                        if isinstance(self.data, dict)
-                        else ""
-                    ),
-                    "validation_method": "FastJSONSchema",
-                    "error_type": (
-                        "FastValidationError" if not fast_validator.valid else ""
-                    ),
-                    "error_message": error_message,
-                    "fast_setup_time": fv_msg.get("setup_time_ms", ""),
-                    "fast_exec_time": fv_msg.get("execution_time_ms", ""),
-                    "valid_objects": fv_msg.get("valid_objects", 0),
-                    "invalid_objects": fv_msg.get("invalid_objects", 0),
-                    "schemas_checked": fv_msg.get("schemas_checked", []),
-                    "errors": fv_msg.get("errors", []),
-                }
-            except ImportError:
-                pass
-
-        if isinstance(file, str):
-            stac = StacValidate(
-                file,
-                links=self.links,
-                assets=self.assets,
-                assets_open_urls=self.assets_open_urls,
-                headers=self.headers,
-                pydantic=self.pydantic,
-                verbose=self.verbose,
-            )
-            stac.run()
-        elif isinstance(file, dict):
-            stac = StacValidate(
-                assets_open_urls=self.assets_open_urls,
-                headers=self.headers,
-                pydantic=self.pydantic,
-            )
-            stac.validate_dict(file)
-        else:
+        if not isinstance(file, (str, dict)):
             raise ValueError("Input must be a file path or STAC dictionary.")
 
-        return stac.message[0]
+        from stac_validator.fast_validator import FastValidator
+
+        with self._fast_validator_context():
+            fast_validator = FastValidator(
+                file if isinstance(file, str) else "in-memory",
+                quiet=False,
+            )
+            if isinstance(file, dict):
+                fast_validator.run_dict(file)
+            else:
+                fast_validator.run()
+
+        # FastValidator.message is a list with one dict containing all
+        # validation info
+        fv_msg = {}
+        if hasattr(fast_validator, "message"):
+            if (
+                isinstance(fast_validator.message, list)
+                and len(fast_validator.message) > 0
+            ):
+                fv_msg = fast_validator.message[0]
+            elif isinstance(fast_validator.message, dict):
+                fv_msg = fast_validator.message
+
+        # Extract error message from the first error if any
+        error_message = ""
+        if not fast_validator.valid and "errors" in fv_msg:
+            errors = fv_msg.get("errors", [])
+            if errors and len(errors) > 0:
+                error_message = errors[0].get("error_message", "")
+
+        from .utilities import determine_asset_type
+
+        # Convert FastValidator result to StacValidate message format
+        return {
+            "valid_stac": fast_validator.valid,
+            "asset_type": (
+                determine_asset_type(data) if isinstance(data, dict) else ""
+            ),
+            "path": fv_msg.get("path", path),
+            "version": (
+                self.data.get("stac_version", "") if isinstance(self.data, dict) else ""
+            ),
+            "validation_method": "FastJSONSchema",
+            "error_type": ("FastValidationError" if not fast_validator.valid else ""),
+            "error_message": error_message,
+            "schema": fv_msg.get("schemas_checked", []),
+            "fast_setup_time": fv_msg.get("setup_time_ms", ""),
+            "fast_exec_time": fv_msg.get("execution_time_ms", ""),
+            "valid_objects": fv_msg.get("valid_objects", 0),
+            "invalid_objects": fv_msg.get("invalid_objects", 0),
+            "schemas_checked": fv_msg.get("schemas_checked", []),
+            "errors": fv_msg.get("errors", []),
+        }
 
     def recursive_validation(
         self, file: Union[str, Dict[str, Any]]
@@ -528,51 +500,17 @@ class Linter:
             TypeError: If the input `file` is not a string or a dictionary.
         """
         if self.recursive:
-            if self.fast and isinstance(file, str):
-                try:
-                    return self._fast_recursive_validation(file)
-                except ImportError:
-                    pass
-            if self.fast and not isinstance(file, str):
-                import warnings
-
-                warnings.warn(
-                    "--fast recursive validation is not supported for "
-                    "in-memory dictionaries; falling back to the standard "
-                    "validator.",
-                    UserWarning,
-                    stacklevel=4,
-                )
             if isinstance(file, str):
-                stac = StacValidate(
-                    file,
-                    recursive=True,
-                    # Keep every validated object in stac.message even when
-                    # the run fails; otherwise run() drops valid results and
-                    # validate_all undercounts the assets checked.
-                    trace_recursion=True,
-                    max_depth=self.max_depth,
-                    assets_open_urls=self.assets_open_urls,
-                    headers=self.headers,
-                    pydantic=self.pydantic,
-                )
-            else:
-                stac = StacValidate(
-                    recursive=True,
-                    trace_recursion=True,
-                    max_depth=self.max_depth,
-                    assets_open_urls=self.assets_open_urls,
-                    headers=self.headers,
-                    pydantic=self.pydantic,
-                )
-            # trace_recursion dumps every validated message as JSON to
-            # stdout; keep the terminal clean unless --verbose was passed.
-            with nullcontext() if self.verbose else redirect_stdout(io.StringIO()):
-                if isinstance(file, str):
-                    stac.run()
-                else:
-                    stac.validate_dict(file)
-            return stac.message
+                return self._fast_recursive_validation(file)
+            import warnings
+
+            warnings.warn(
+                "Recursive traversal is not supported for in-memory "
+                "dictionaries; only the document itself is validated.",
+                UserWarning,
+                stacklevel=4,
+            )
+            return [self.validate_file(file)]
         else:
             return "Recursive validation is disabled."
 
@@ -693,9 +631,10 @@ class Linter:
                     continue
                 mapped.update(self._pydantic_validate(obj, path=mapped["path"]))
 
-        # --fast-linting: run linting and geometry checks per object using the
-        # already-loaded documents, without re-fetching or re-validating.
-        if self.fast_linting:
+        # Run linting and geometry checks per object using the
+        # already-loaded documents, without re-fetching or re-validating,
+        # unless --fast skips them.
+        if not self.fast:
             for raw_result, mapped in zip(fast_validator.message, results):
                 obj = fast_validator.loaded_objects.get(raw_result.get("path", ""))
                 if not isinstance(obj, dict):
@@ -705,8 +644,6 @@ class Linter:
                         obj,
                         config_file=self.config_file,
                         headers=self.headers,
-                        fast=True,
-                        fast_linting=True,
                         prevalidated=True,
                     )
                     mapped["best_practices"] = lint.best_practices_msg
@@ -1585,8 +1522,8 @@ class Linter:
         base_string = "STAC Best Practices: "
         best_practices.append(base_string)
 
-        # Skip best practices checks in fast mode (unless fast_linting is enabled)
-        if self.fast and not self.fast_linting:
+        # --fast skips best practices checks
+        if self.fast:
             return best_practices
 
         best_practices_dict = self.create_best_practices_dict()
@@ -1621,8 +1558,8 @@ class Linter:
             'Geometry Validation Errors [BETA]:' base string and is followed by specific details. Each message is indented
             with four spaces, and there is an empty string between each message for readability.
         """
-        # Skip geometry validation in fast mode (unless fast_linting is enabled)
-        if self.fast and not self.fast_linting:
+        # --fast skips geometry validation
+        if self.fast:
             return []
 
         # Check if geometry validation is enabled

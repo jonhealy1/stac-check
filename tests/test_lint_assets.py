@@ -33,28 +33,22 @@ def _fake_get(url, headers=None, *args, **kwargs):
 def test_lint_assets_no_links(mock_urlopen, mock_get):
     file = "sample_files/1.0.0/core-item.json"
     linter = Linter(file, assets=True, assets_open_urls=False)
-    assert linter.message == {
-        "version": "1.0.0",
-        "path": file,
-        "schema": [
-            "https://schemas.stacspec.org/v1.0.0/item-spec/json-schema/item.json"
+    assert linter.message["version"] == "1.0.0"
+    assert linter.message["path"] == file
+    assert linter.message["valid_stac"] is True
+    assert linter.message["validation_method"] == "FastJSONSchema"
+    assert linter.message["assets_validated"] == {
+        "format_valid": [
+            "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2_analytic.tif",
+            "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2.jpg",
+            "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2.tif",
+            "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2_analytic_udm.tif",
+            "http://remotedata.io/catalog/20201211_223832_CS2/extended-metadata.json",
+            "http://cool-sat.com/catalog/20201211_223832_CS2/20201211_223832_CS2.EPH",
         ],
-        "valid_stac": True,
-        "asset_type": "ITEM",
-        "validation_method": "default",
-        "assets_validated": {
-            "format_valid": [
-                "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2_analytic.tif",
-                "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2.jpg",
-                "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2.tif",
-                "https://storage.googleapis.com/open-cogs/stac-examples/20201211_223832_CS2_analytic_udm.tif",
-                "http://remotedata.io/catalog/20201211_223832_CS2/extended-metadata.json",
-                "http://cool-sat.com/catalog/20201211_223832_CS2/20201211_223832_CS2.EPH",
-            ],
-            "format_invalid": [],
-            "request_valid": [],
-            "request_invalid": [],
-        },
+        "format_invalid": [],
+        "request_valid": [],
+        "request_invalid": [],
     }
 
 

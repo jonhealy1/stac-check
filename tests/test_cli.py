@@ -118,7 +118,6 @@ def test_cli_collections(runner):
             headers={},
             verbose=False,
             fast=False,
-            fast_linting=False,
         )
 
 
@@ -152,7 +151,6 @@ def test_cli_item_collection(runner):
             headers={},
             verbose=False,
             fast=False,
-            fast_linting=False,
         )
 
 
@@ -396,15 +394,14 @@ def test_cli_fast_validation_passes_fast_flag(runner):
         assert call_kwargs.get("fast") is True
 
 
-def test_cli_fast_linting_validation(runner):
-    """Test that --fast-linting flag is passed to Linter with fast=True and fast_linting=True."""
+def test_cli_fast_linting_deprecated(runner):
+    """--fast-linting is a deprecated no-op: it warns and does not enable fast."""
     test_file = os.path.join(
         os.path.dirname(__file__), "../sample_files/1.0.0/core-item.json"
     )
     with patch("stac_check.cli.Linter") as mock_linter:
         mock_instance = MagicMock()
-        mock_instance.fast = True
-        mock_instance.fast_linting = True
+        mock_instance.fast = False
         mock_instance.valid_stac = True
         mock_instance.best_practices_msg = [
             "STAC Best Practices: ",
@@ -413,10 +410,9 @@ def test_cli_fast_linting_validation(runner):
         mock_instance.geometry_errors_msg = []
         mock_linter.return_value = mock_instance
 
-        runner.invoke(cli_main, [test_file, "--fast-linting"])
+        result = runner.invoke(cli_main, [test_file, "--fast-linting"])
 
-        # Verify Linter was called with fast=True and fast_linting=True
+        assert "deprecated" in result.output
         assert mock_linter.called
         call_kwargs = mock_linter.call_args[1]
-        assert call_kwargs.get("fast") is True
-        assert call_kwargs.get("fast_linting") is True
+        assert call_kwargs.get("fast") is False

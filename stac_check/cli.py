@@ -115,12 +115,12 @@ def is_item_collection(file: str, headers: dict = None) -> bool:
 @click.option(
     "--fast",
     is_flag=True,
-    help="Use FastJSONSchema for high-speed validation. Skips geometry checks and linting for maximum performance. Also applies to --recursive.",
+    help="Skip linting and geometry checks for maximum validation speed. Also applies to --recursive.",
 )
 @click.option(
     "--fast-linting",
     is_flag=True,
-    help="Use FastJSONSchema for high-speed validation with linting and geometry checks.",
+    help="Deprecated: linting and geometry checks run by default (no-op).",
 )
 @click.command()
 @click.argument("file")
@@ -158,12 +158,16 @@ def main(
         pydantic: Use stac-pydantic for validation
         verbose: Show verbose output
         output: Save output to file (only with --collections, --item-collection, or --recursive)
-        fast: Fast validation mode (skips geometry checks and linting for maximum performance)
-        fast_linting: Fast validation mode with linting and geometry checks
+        fast: Skip linting and geometry checks for maximum validation speed
+        fast_linting: Deprecated no-op; linting runs by default
     """
-    # Resolve fast/fast-linting flags
     if fast_linting:
-        fast = True
+        click.secho(
+            "Warning: --fast-linting is deprecated and has no effect; "
+            "linting and geometry checks run by default. Use --fast to skip them.",
+            fg="yellow",
+            err=True,
+        )
 
     # Check if output is used without --collections, --item-collection, or --recursive
     if output and not any([collections, item_collection, recursive]):
@@ -198,7 +202,6 @@ def main(
             headers=dict(header),
             verbose=verbose,
             fast=fast,
-            fast_linting=fast_linting,
         )
         results = api_linter.lint_all()
 
@@ -211,7 +214,6 @@ def main(
             pydantic=pydantic,
             verbose=verbose,
             fast=fast,
-            fast_linting=fast_linting,
         )
 
         # Show intro message in the terminal
@@ -250,7 +252,6 @@ def main(
             pydantic=pydantic,
             verbose=verbose,
             fast=fast,
-            fast_linting=fast_linting,
         )
 
         intro_message(linter)

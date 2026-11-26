@@ -230,13 +230,11 @@ def test_fast_mode_json_url_falls_back_and_validates():
     assert results[0]["valid_stac"] is False
 
 
-def test_fast_linting_populates_best_practices():
-    """--fast-linting runs best practices checks on collection items."""
+def test_lint_populates_best_practices():
+    """Best practices checks run on collection items by default."""
     linter = ApiLinter(
         source="sample_files/1.0.0/feature_collection.json",
         object_list_key="features",
-        fast=True,
-        fast_linting=True,
     )
     results = linter.lint_all()
 

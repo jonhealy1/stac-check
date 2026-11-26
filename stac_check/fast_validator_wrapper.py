@@ -40,7 +40,7 @@ def validate_collection_fast(
     source: str,
     linter_class: Any,
     verbose: bool = False,
-    fast_linting: bool = False,
+    lint_items: bool = False,
     headers: Optional[Dict] = None,
 ) -> tuple[List[Dict], float, List[str]]:
     """Validate a collection file using FastValidator.
@@ -52,7 +52,7 @@ def validate_collection_fast(
         source: Path to the STAC collection file
         linter_class: The Linter class to use for validation
         verbose: Whether to show verbose output
-        fast_linting: Whether to include linting checks in fast mode
+        lint_items: Whether to run linting checks on each item
         headers: Optional HTTP headers forwarded to the linter instances
 
     Returns:
@@ -102,16 +102,14 @@ def validate_collection_fast(
         error_messages = failed_items.get(item_id, [])
 
         # Get best practices and geometry errors for this item (linting checks
-        # only, no re-validation). Only run linting if fast_linting is enabled
+        # only, no re-validation)
         best_practices = []
         geometry_errors = []
-        if fast_linting:
+        if lint_items:
             try:
                 item_linter = linter_class(
                     obj,
                     verbose=verbose,
-                    fast=True,
-                    fast_linting=True,
                     prevalidated=True,
                     headers=headers or {},
                 )

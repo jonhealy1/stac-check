@@ -112,8 +112,8 @@ def _display_geometry_errors(linter: Linter) -> None:
     Args:
         linter: The Linter object containing geometry error information
     """
-    # Skip geometry errors display in fast mode (unless fast_linting is enabled)
-    if getattr(linter, "fast", False) and not getattr(linter, "fast_linting", False):
+    # --fast skips geometry errors display
+    if getattr(linter, "fast", False):
         return
 
     if linter.geometry_errors_msg:
@@ -667,7 +667,6 @@ def item_collection_message(
             return Linter(
                 msg.get("original_object"),
                 fast=linter.fast,
-                fast_linting=linter.fast_linting,
             )
         raise ValueError("No original object available")
 
@@ -782,7 +781,6 @@ def collections_message(
             return Linter(
                 msg.get("original_object"),
                 fast=linter.fast,
-                fast_linting=linter.fast_linting,
             )
         raise ValueError("No original object available")
 

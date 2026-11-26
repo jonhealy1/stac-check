@@ -41,7 +41,6 @@ class ApiLinter:
         headers: Optional[Dict] = None,
         verbose: bool = False,
         fast: bool = False,
-        fast_linting: bool = False,
     ):
         self.source = source
         self.object_list_key = object_list_key
@@ -49,7 +48,6 @@ class ApiLinter:
         self.headers = headers or {}
         self.verbose = verbose
         self.fast = fast
-        self.fast_linting = fast_linting
         self.version = None
         self.validator_version = self._get_validator_version()
         self.start_time = time.time()
@@ -169,7 +167,7 @@ class ApiLinter:
                     self.source,
                     Linter,
                     self.verbose,
-                    self.fast_linting,
+                    lint_items=not self.fast,
                     headers=self.headers,
                 )
 
