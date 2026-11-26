@@ -515,13 +515,7 @@ class Linter:
             return "Recursive validation is disabled."
 
     def _fast_recursive_validation(self, file: str) -> List[Dict]:
-        """Recursively validate a catalog and its children using FastValidator.
-
-        Note: --max-depth is not supported by FastValidator's recursive mode,
-        which uses a fixed internal depth limit.
-        """
-        import warnings
-
+        """Recursively validate a catalog and its children using FastValidator."""
         from stac_validator.fast_validator import FastValidator
 
         class _RecursiveFastValidator(FastValidator):
@@ -539,6 +533,9 @@ class Linter:
                 # Documents as loaded, keyed by the path FastValidator
                 # records in its results (before URL repair).
                 self.loaded_objects: Dict[str, Dict[str, Any]] = {}
+                # Optional user-supplied depth cap; objects at or beyond
+                # it are not validated (root is depth 0).
+                self._max_depth: Optional[int] = None
 
             def _load_json_resource(self, resource_path: str) -> Dict[str, Any]:
                 original_path = resource_path
@@ -572,6 +569,8 @@ class Linter:
                 prefetched_resources=None,
                 depth=0,
             ):
+                if self._max_depth is not None and depth >= self._max_depth:
+                    return
                 if _is_pre_1_0(data):
                     # Report a clear error instead of letting get_validator
                     # fail on schemas.stacspec.org, which does not host
@@ -603,17 +602,10 @@ class Linter:
                     depth=depth,
                 )
 
-        if self.max_depth is not None:
-            warnings.warn(
-                "--max-depth is not supported in fast mode; the full catalog "
-                "will be validated.",
-                UserWarning,
-                stacklevel=5,
-            )
-
         start_time = time.perf_counter()
         with self._fast_validator_context():
             fast_validator = _RecursiveFastValidator(file, quiet=False)
+            fast_validator._max_depth = self.max_depth
             fast_validator.run_recursive()
         self.fast_total_time = (time.perf_counter() - start_time) * 1000
 

@@ -835,11 +835,7 @@ def recursive_message(
         results=linter.validate_all,
         title="Recursive: Validate all assets in a collection or catalog",
         metadata={
-            "Max-depth": (
-                "unlimited"
-                if linter.fast or linter.max_depth is None
-                else linter.max_depth
-            )
+            "Max-depth": ("unlimited" if linter.max_depth is None else linter.max_depth)
         },
         cli_message_func=cli_message_func,
         create_linter_func=create_recursive_linter,

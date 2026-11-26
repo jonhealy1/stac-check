@@ -86,10 +86,19 @@ def test_linter_recursive_fast_root_load_failure(monkeypatch):
     assert "Failed to load" in msg["error_message"]
 
 
-def test_linter_recursive_fast_max_depth_warns():
+def test_linter_recursive_fast_max_depth_enforced():
+    """--max-depth caps the recursive walk: objects at or beyond the
+    limit are not validated (the root is depth 0)."""
     file = "sample_files/1.0.0/catalog-with-bad-item.json"
-    with pytest.warns(UserWarning, match="--max-depth is not supported"):
-        linter = Linter(file, recursive=True, fast=True, max_depth=1)
+    linter = Linter(file, recursive=True, fast=True, max_depth=1)
+    assert len(linter.validate_all) == 1
+    assert linter.validate_all[0]["path"].endswith("catalog-with-bad-item.json")
+
+
+def test_linter_recursive_max_depth_unlimited():
+    """Without --max-depth the whole catalog is walked."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True, fast=True)
     assert len(linter.validate_all) == 3
 
 
