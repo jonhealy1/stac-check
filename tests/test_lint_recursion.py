@@ -22,6 +22,37 @@ def test_linter_collection_recursive():
         assert msg["path"].endswith("bad-item.json")
 
 
+def test_linter_recursive_keeps_all_results_on_failure():
+    """validate_all retains every validated object when the run fails, and
+    the walk continues past an invalid item link (stac-valid >= 4.6.4)."""
+    file = "sample_files/1.0.0/catalog-with-bad-item.json"
+    linter = Linter(file, recursive=True)
+    assert len(linter.validate_all) == 3  # catalog + both items
+    assert sum(1 for m in linter.validate_all if not m["valid_stac"]) == 1
+    assert any(
+        m["path"].endswith("collectionless-item.json") and m["valid_stac"]
+        for m in linter.validate_all
+    )
+
+
+def test_linter_recursive_trace_suppressed(capsys):
+    """trace_recursion's per-object JSON dump does not leak to stdout."""
+    Linter("sample_files/1.0.0/catalog-with-bad-item.json", recursive=True)
+    out = capsys.readouterr().out
+    assert '"valid_stac"' not in out
+
+
+def test_linter_recursive_trace_verbose(capsys):
+    """--verbose surfaces the upstream per-object trace output."""
+    Linter(
+        "sample_files/1.0.0/catalog-with-bad-item.json",
+        recursive=True,
+        verbose=True,
+    )
+    out = capsys.readouterr().out
+    assert '"valid_stac"' in out
+
+
 def test_linter_recursive_fast():
     """--recursive --fast uses FastValidator to validate the whole catalog."""
     file = "sample_files/1.0.0/catalog-with-bad-item.json"
